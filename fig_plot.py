@@ -5,6 +5,7 @@ from scipy.stats import binom
 from fractions import Fraction
 from tqdm import trange, tqdm
 from multiprocessing import Pool
+import math
 
 fig, ax = plt.subplots()
 ax.set_xlabel('r')
@@ -27,13 +28,17 @@ ax.plot(np.arange(D + 1),
 
 filepath_prefix = "../Randomized_Smoothing/MNIST_exp/compute_rho/list_counts/mnist/"
 
-# ans = [785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
-#        785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
-#        785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
-#        785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
-#        785, 785, 785, 785, 785, 44, 32, 28, 24, 22, 20, 18, 18, 16, 16, 14, 14, 14, 12, 12, 12, 10, 10, 10, 10, 10, 10,
-#        8, 8, 8, 8, 8, 8, 8, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2,
-#        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+"""
+considered_degree = 1
+ans = [785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 44, 32, 28, 24, 22, 20, 18, 18, 16, 16, 14, 14, 14, 12, 12, 12, 10, 10, 10, 10, 10, 10,
+       8, 8, 8, 8, 8, 8, 8, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+
+considered_degree = 2
 ans = [785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
        785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
        785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
@@ -43,12 +48,37 @@ ans = [785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785
        4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
        2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-# print(len(ans)) 186 vs. 259
+       
+print(len(ans)) 186 vs. 259
 
-for x in range(D + 1):
-    if len(ans) <= x:
-        ans.append(0)
+considered_degree = 1 (KL_bounds)
+ans = [785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 44, 32, 28, 24, 22, 20, 18, 18, 16, 16, 14, 14, 14, 12, 12, 12, 12, 10, 10, 10, 10, 10,
+       8, 8, 8, 8, 8, 8, 8, 8, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+       4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1,
+       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 
+considered_degree = 2 (KL_bounds)
+ans = [785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785,
+       785, 785, 785, 785, 785, 44, 32, 28, 24, 22, 20, 19, 18, 16, 16, 15, 14, 14, 13, 12, 12, 12, 12, 10, 10, 10, 10,
+       10, 9, 8, 8, 8, 8, 8, 8, 8, 8, 7, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+       4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]     
+       
+print(len(ans)) 265 vs. 293
+"""
+
+# print(len(ans))
+# exit(0)
 considered_degree = 2
 
 
@@ -57,7 +87,12 @@ def f(args):
     return complete_cnt[mn0]
 
 
+def log(a):
+    return Fraction(math.log(a.numerator)) - Fraction(math.log(a.denominator))
+
+
 def get_KL_divergence_cf(theta_a, kl):
+    theta_a = Fraction(theta_a)
     if theta_a == 1:
         return 1
     l = 0
@@ -65,7 +100,7 @@ def get_KL_divergence_cf(theta_a, kl):
     theta_b = 1 - theta_a
     for i in range(50):
         cf = (l + r) / 2
-        if theta_a * np.exp(kl) <= np.power((1 - cf) * theta_a / cf / theta_b, 1 - cf) * cf:
+        if kl <= (1 - cf) * (log(1 - cf) - log(theta_b)) + cf * log(cf) - cf * log(theta_a):
             l = cf
         else:
             r = cf
@@ -73,13 +108,18 @@ def get_KL_divergence_cf(theta_a, kl):
     return l
 
 
-# print(get_KL_divergence_cf(0.9999999999999999, ((k - 2) * 0.01 + 2) * np.log(a / (1 - a)) * 8 * (a - 1 + a)))
-exit(0)
+# print(float(
+#     get_KL_divergence_cf(1 - Fraction(1, 1000000000000000000),
+#                          ((k - 2) * 0.01 + 2) * np.log(a / (1 - a)) * 8 * (a - 1 + a))))
+# exit(0)
 
 
-def check(s, remain_to_assign, remain_to_achieve):
+# actually runs slower for considered_degree = 1, but much faster when considered_degree = 2.
+# the Fraction in the preprocessing is to blame.
+def check(s, remain_to_assign):
     complete_cnt_ = list(np.load(os.path.join(filepath_prefix, 'complete_count_{}_0.npy'.format(s)),
                                  allow_pickle=True))
+    achieved = 0
 
     complete_cnt_p = [0] * (d * 2 + 1)
     complete_cnt_q = [0] * (d * 2 + 1)
@@ -115,27 +155,122 @@ def check(s, remain_to_assign, remain_to_achieve):
 
             if p_delta < remain_to_assign:
                 remain_to_assign -= p_delta
-                remain_to_achieve -= q_delta
-                if remain_to_achieve < 0:
+                achieved += q_delta
+                if achieved > Fraction(1, 2):
                     del complete_cnt_p
                     del complete_cnt_q
                     del complete_cnt_
                     return True
             else:
-                remain_to_achieve -= remain_to_assign / ((Ia ** (-m_n_delta)) * (Ib ** m_n_delta))
+                achieved += remain_to_assign / ((Ia ** (-m_n_delta)) * (Ib ** m_n_delta))
                 del complete_cnt_p
                 del complete_cnt_q
                 del complete_cnt_
-                return remain_to_achieve < 0
+                return achieved > Fraction(1, 2)
 
     del complete_cnt_p
     del complete_cnt_q
     del complete_cnt_
-    return remain_to_achieve < 0
+    return achieved > Fraction(1, 2)
 
 
-# ans = []
-for x in range(0):
+def check_NP_KL(s, r, p, _1mp1):
+    p1 = 1 - _1mp1
+    complete_cnt_ = list(np.load(os.path.join(filepath_prefix, 'complete_count_{}_0.npy'.format(s)),
+                                 allow_pickle=True))
+    achieved = 0
+    assigned = 0
+
+    complete_cnt_p = [0] * (d * 2 + 1)
+    complete_cnt_q = [0] * (d * 2 + 1)
+    for ((m, n), c) in complete_cnt_:
+        complete_cnt_p[m - n + d] += c * (Ia ** (d - m)) * (Ib ** m)
+        complete_cnt_q[m - n + d] += c * (Ia ** (d - n)) * (Ib ** n)
+        if m != n:
+            complete_cnt_p[n - m + d] += c * (Ia ** (d - n)) * (Ib ** n)
+            complete_cnt_q[n - m + d] += c * (Ia ** (d - m)) * (Ib ** m)
+
+    for m_n_delta in trange(-considered_degree * d, considered_degree * d + 1):
+        outcome = []
+        # pos_cnt = 0
+        if m_n_delta == 0:
+            outcome.append([1, 1, 0])
+        # pos_cnt = 1
+        if considered_degree >= 1 and d >= abs(m_n_delta) and complete_cnt_p[m_n_delta + d] > 0:
+            outcome.append([complete_cnt_p[m_n_delta + d], complete_cnt_q[m_n_delta + d], 1])
+        # pos_cnt = 2
+        if considered_degree >= 2:
+            cnt_p = sum(complete_cnt_p[mn0 + d] * complete_cnt_p[m_n_delta - mn0 + d] for mn0 in
+                        range(max(-d, m_n_delta - d), min(d, m_n_delta + d) + 1))
+            cnt_q = sum(complete_cnt_q[mn0 + d] * complete_cnt_q[m_n_delta - mn0 + d] for mn0 in
+                        range(max(-d, m_n_delta - d), min(d, m_n_delta + d) + 1))
+            if cnt_p > 0:
+                outcome.append([cnt_p, cnt_q, 2])
+
+        for i in range(len(outcome)):
+            p_cnt, q_cnt, poison_cnt = outcome[i]
+            ratio = ((Ia ** (-m_n_delta)) * (Ib ** m_n_delta))
+
+            q_delta = q_cnt * p_binom[poison_cnt]
+            p_delta = p_cnt * p_binom[poison_cnt]
+
+            start = True
+            if assigned < p1 + p - 1 < assigned + p_delta:
+                start_l = p1 + p - 1
+            elif assigned >= p1 + p - 1:
+                start_l = assigned
+            else:
+                start = False
+
+            end = False
+            if assigned + p_delta > min(p1, p):
+                start_r = min(p1, p)
+                end = True
+            else:
+                start_r = assigned + p_delta
+
+            if start:
+                # what if in the middle?
+                # tenary search
+                value_mid_l = None
+                value_mid_r = None
+
+                def get_value(mid):
+                    return achieved + (mid - assigned) / ratio + _1mp1 * get_KL_divergence_cf(
+                        (p - mid) / _1mp1,
+                        ((k - considered_degree) * Fraction(r, D) + considered_degree) * log(Ia / Ib) * s * (Ia - Ib))
+
+                for _ in range(100):
+                    mid_l = (start_l * 2 + start_r) / 3
+                    mid_r = (start_l + start_r * 2) / 3
+                    value_mid_l = get_value(mid_l)
+                    value_mid_r = get_value(mid_r)
+
+                    if value_mid_l > value_mid_r:
+                        start_l = mid_l
+                    else:
+                        start_r = mid_r
+
+                    if value_mid_l <= Fraction(1, 2) or value_mid_r <= Fraction(1, 2):
+                        return False
+
+            if end:
+                break
+
+            assigned += p_delta
+            achieved += q_delta
+
+            if achieved > Fraction(1, 2):
+                del complete_cnt_p
+                del complete_cnt_q
+                del complete_cnt_
+                return True
+
+    return True
+
+
+ans = []
+for x in range(D + 1):
     if x <= Rbag:
         ans.append(d)
         continue
@@ -153,7 +288,8 @@ for x in range(0):
 
     feasible_l = -1
     for l in range(20):
-        if ans[-1] - 2 ** l + 1 <= 0 or check(ans[-1] - 2 ** l + 1, Fraction(pa) - other_pk, Fraction(1, 2)):
+        # if ans[-1] - 2 ** l + 1 <= 0 or check(ans[-1] - 2 ** l + 1, Fraction(pa) - other_pk):
+        if ans[-1] - 2 ** l + 1 <= 0 or check_NP_KL(ans[-1] - 2 ** l + 1, x, Fraction(pa), other_pk):
             feasible_l = l
             break
 
@@ -162,16 +298,19 @@ for x in range(0):
     for l in range(feasible_l - 1, -1, -1):
         if 2 ** l + ans[-1] > ans[-2]:
             continue
-        if check(ans[-1] + 2 ** l, Fraction(pa) - other_pk, Fraction(1, 2)):
+        # if check(ans[-1] + 2 ** l, Fraction(pa) - other_pk):
+        if check_NP_KL(ans[-1] + 2 ** l, x, Fraction(pa), other_pk):
             ans[-1] += 2 ** l
 
     print(x, ans[-1])
 
-# print(ans)
+print(ans)
 # exit(0)
 # ans = [d if x == 0 else min(d, np.ceil(np.log(4 * pa * (1 - pa)) * D / 2 / k / x / np.log((1 - a) / a) / 0.4) - 1) for x
 #        in range(D + 1)]
-
+for x in range(D + 1):
+    if len(ans) <= x:
+        ans.append(0)
 for x in range(len(ans)):
     if ans[x] != d:
         print(x - 1)
