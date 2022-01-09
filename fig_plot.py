@@ -2,31 +2,52 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import binom
+from scipy.special import comb
 from fractions import Fraction
 from tqdm import trange, tqdm
 from multiprocessing import Pool
 import math
 
+dataset = "ember"
+algorithm = "NP+KL"
+assert algorithm in ["NP", "NP+KL"]
 fig, ax = plt.subplots()
 ax.set_xlabel('r')
 ax.set_ylabel('s')
-pa = 0.8
-k = 50
-D = 13007
-Rbag = int(np.ceil(D * (1 - np.power(1 - (pa - (1 - pa)) / 2, 1 / k))) - 1)
-print(Rbag)
-d = 28 * 28 + 1
-Rff = 3
-a = 0.7
-K = 1
-Ia = Fraction(7, 10)
-Ib = Fraction(3, 10 * K)
+
+if dataset == "mnist":
+    st_d = 0
+    pa = 0.8
+    k = 50
+    D = 13007
+    Rbag = int(np.ceil(D * (1 - np.power(1 - (pa - (1 - pa)) / 2, 1 / k))) - 1)
+    print(Rbag)
+    d = 28 * 28 + 1
+    Rff = 3
+    a = 0.7
+    K = 1
+    Ia = Fraction(7, 10)
+    Ib = Fraction(3, 10 * K)
+elif dataset == "ember":
+    # st_d = 600
+    pa = 0.8
+    k = 500
+    D = 600000
+    Rbag = int(np.ceil(D * (1 - np.power(1 - (pa - (1 - pa)) / 2, 1 / k))) - 1)
+    print(Rbag)
+    d = 2351
+    Rff = 3
+    a = 0.7
+    K = 1
+    Ia = Fraction(7, 10)
+    Ib = Fraction(3, 10 * K)
 
 ax.plot([Rbag, Rbag], [1, d], label="bagging")
 ax.plot(np.arange(D + 1),
         [d if x == 0 else min(d, np.floor_divide(Rff, x)) for x in range(D + 1)], label="feature-flipping")
 
-filepath_prefix = "../Randomized_Smoothing/MNIST_exp/compute_rho/list_counts/mnist/"
+filepath_prefix = "../Randomized_Smoothing/MNIST_exp/compute_rho/list_counts/%s/" % dataset
+considered_degree = 2
 
 """
 considered_degree = 1
@@ -77,9 +98,9 @@ ans = [785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785, 785
 print(len(ans)) 265 vs. 293
 """
 
+
 # print(len(ans))
 # exit(0)
-considered_degree = 2
 
 
 def f(args):
@@ -116,14 +137,17 @@ def get_KL_divergence_cf(theta_a, kl):
 
 # actually runs slower for considered_degree = 1, but much faster when considered_degree = 2.
 # the Fraction in the preprocessing is to blame.
-def check(s, remain_to_assign):
-    complete_cnt_ = list(np.load(os.path.join(filepath_prefix, 'complete_count_{}_0.npy'.format(s)),
-                                 allow_pickle=True))
+def check_NP(s, remain_to_assign):
+    try:
+        complete_cnt_ = list(np.load(os.path.join(filepath_prefix, 'complete_count_{}_0.npy'.format(s)),
+                                     allow_pickle=True))
+    except:
+        return False
     achieved = 0
 
     complete_cnt_p = [0] * (d * 2 + 1)
     complete_cnt_q = [0] * (d * 2 + 1)
-    for ((m, n), c) in complete_cnt_:
+    for ((m, n), c) in tqdm(complete_cnt_):
         complete_cnt_p[m - n + d] += c * (Ia ** (d - m)) * (Ib ** m)
         complete_cnt_q[m - n + d] += c * (Ia ** (d - n)) * (Ib ** n)
         if m != n:
@@ -176,14 +200,17 @@ def check(s, remain_to_assign):
 
 def check_NP_KL(s, r, p, _1mp1):
     p1 = 1 - _1mp1
-    complete_cnt_ = list(np.load(os.path.join(filepath_prefix, 'complete_count_{}_0.npy'.format(s)),
-                                 allow_pickle=True))
+    try:
+        complete_cnt_ = list(np.load(os.path.join(filepath_prefix, 'complete_count_{}_0.npy'.format(s)),
+                                     allow_pickle=True))
+    except:
+        return False
     achieved = 0
     assigned = 0
 
     complete_cnt_p = [0] * (d * 2 + 1)
     complete_cnt_q = [0] * (d * 2 + 1)
-    for ((m, n), c) in complete_cnt_:
+    for ((m, n), c) in tqdm(complete_cnt_):
         complete_cnt_p[m - n + d] += c * (Ia ** (d - m)) * (Ib ** m)
         complete_cnt_q[m - n + d] += c * (Ia ** (d - n)) * (Ib ** n)
         if m != n:
@@ -269,6 +296,31 @@ def check_NP_KL(s, r, p, _1mp1):
     return True
 
 
+def check_radius(x, k, s):
+    """
+    return whether the radius is certifiable
+    :param x: the number of poisoned instance
+    :param k: the size of each bag
+    :param s: the number of poisoned feature
+    :return: bool, whether it is certifiable
+    """
+    global p_binom
+    p_binom = [None] * (k + 1)
+    other_pk = Fraction(1)
+    for i in range(considered_degree + 1):
+        p_binom[i] = comb(k, i, exact=True) * (Fraction(x, D) ** i) * ((1 - Fraction(x, D)) ** (k - i))
+        other_pk -= p_binom[i]
+
+    if algorithm == "NP":
+        return check_NP(s, Fraction(pa) - other_pk)
+    elif algorithm == "NP+KL":
+        return check_NP_KL(s, x, Fraction(pa), other_pk)
+    else:
+        raise NotImplementedError
+
+
+print(check_radius(600, 600, 4))
+exit(0)
 ans = []
 for x in range(D + 1):
     if x <= Rbag:
@@ -277,7 +329,7 @@ for x in range(D + 1):
     p_binom = [None] * (k + 1)
     other_pk = Fraction(1)
     for i in range(considered_degree + 1):
-        p_binom[i] = Fraction(binom.pmf(i, k, x / D))
+        p_binom[i] = comb(k, i, exact=True) * (Fraction(x, D) ** i) * ((1 - Fraction(x, D)) ** (k - i))
         other_pk -= p_binom[i]
 
     remain_to_assign = Fraction(pa) - other_pk
@@ -288,19 +340,30 @@ for x in range(D + 1):
 
     feasible_l = -1
     for l in range(20):
-        # if ans[-1] - 2 ** l + 1 <= 0 or check(ans[-1] - 2 ** l + 1, Fraction(pa) - other_pk):
-        if ans[-1] - 2 ** l + 1 <= 0 or check_NP_KL(ans[-1] - 2 ** l + 1, x, Fraction(pa), other_pk):
-            feasible_l = l
-            break
+        if algorithm == "NP":
+            if ans[-1] - 2 ** l + 1 <= 0 or check_NP(ans[-1] - 2 ** l + 1, Fraction(pa) - other_pk):
+                feasible_l = l
+                break
+        elif algorithm == "NP+KL":
+            if ans[-1] - 2 ** l + 1 <= 0 or check_NP_KL(ans[-1] - 2 ** l + 1, x, Fraction(pa), other_pk):
+                feasible_l = l
+                break
+        else:
+            raise NotImplementedError
 
     print(f"feasible_l: {feasible_l}")
     ans.append(max(0, ans[-1] - 2 ** feasible_l + 1))
     for l in range(feasible_l - 1, -1, -1):
         if 2 ** l + ans[-1] > ans[-2]:
             continue
-        # if check(ans[-1] + 2 ** l, Fraction(pa) - other_pk):
-        if check_NP_KL(ans[-1] + 2 ** l, x, Fraction(pa), other_pk):
-            ans[-1] += 2 ** l
+        if algorithm == "NP":
+            if check_NP(ans[-1] + 2 ** l, Fraction(pa) - other_pk):
+                ans[-1] += 2 ** l
+        elif algorithm == "NP+KL":
+            if check_NP_KL(ans[-1] + 2 ** l, x, Fraction(pa), other_pk):
+                ans[-1] += 2 ** l
+        else:
+            raise NotImplementedError
 
     print(x, ans[-1])
 
