@@ -8,11 +8,14 @@ def train_many(data_loader, model, args):
     test_size = data_loader.x_test.shape[0]
     aggregate_result = np.zeros([test_size, data_loader.n_classes + 1], dtype=np.int)
     # using the last index for the ground truth label
-    datagen = DataGeneratorForMNIST()
+    datagen = DataGeneratorForMNIST() if args.data_aug else None
     for i in range(args.N):
         X, y = data_loader.data_processor.process_train()
         y = keras.utils.to_categorical(y, data_loader.n_classes)
-        model.fit_generator(datagen.flow(X, y, batch_size=args.batch_size), args.epochs)
+        if datagen is not None:
+            model.fit_generator(datagen.flow(X, y, batch_size=args.batch_size), args.epochs)
+        else:
+            model.fit(X, y, args.batch_size, args.epochs)
         prediction_label = model.evaluate(data_loader.x_test,
                                           keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
         aggregate_result[np.arange(0, test_size), prediction_label] += 1

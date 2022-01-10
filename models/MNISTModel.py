@@ -45,7 +45,7 @@ class MNISTModel(object):
         self.model.fit_generator(datagen, epochs=epochs, verbose=0, workers=4)
 
     def fit(self, X, y, batch_size, epochs):
-        self.model.fit(X, y, batch_size=batch_size, epochs=epochs)
+        self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4)
 
     def evaluate(self, x_test, y_test):
         score = self.model.evaluate(x_test, y_test, verbose=0)

@@ -21,6 +21,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=200, help="training epochs")
     parser.add_argument("--batch_size", type=int, default=16, help="batch size")
     parser.add_argument("--gpu_id", type=str, default="0", help="gpu id for training")
+    parser.add_argument("--data_aug", action='store_true', help="whether to use data augmentation")
 
     # poisoning defence parameters
     parser.add_argument('--k', action='store', default=None, type=int,
