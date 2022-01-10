@@ -7,7 +7,7 @@ from keras.layers import Conv2D, MaxPooling2D
 from keras.models import load_model
 
 
-class MNISTModel(object):
+class MNIST17Model(object):
     def __init__(self, n_features, n_classes):
         self.n_features = n_features
         self.model = self.build_model(n_features, n_classes)
@@ -27,7 +27,7 @@ class MNISTModel(object):
         model.add(Dense(n_classes, activation='softmax'))
 
         model.compile(loss=keras.losses.categorical_crossentropy,
-                      optimizer=keras.optimizers.Adadelta(),
+                      optimizer=keras.optimizers.Adam(lr=0.001),
                       metrics=['accuracy'])
         return model
 

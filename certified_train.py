@@ -8,7 +8,7 @@ import numpy as np
 import tensorflow as tf
 
 from data_processing import MNIST17DataPreprocessor
-from models import MNISTModel
+from models import MNIST17Model
 from train_utils import train_many, train_single
 
 if __name__ == "__main__":
@@ -47,9 +47,6 @@ if __name__ == "__main__":
     parser.add_argument("--N", default=1000, type=int,
                         help="number of classifiers to train"
                         )
-    parser.add_argument("--confidence", default=0.99, type=float,
-                        help="confidence level = 1 - alpha, where alpha is the significance"
-                        )
 
     # dirs and files
     parser.add_argument("--load_poison_dir", default=None, type=str,
@@ -79,12 +76,17 @@ if __name__ == "__main__":
     if args.res_save_dir is not None:
         if not os.path.exists(args.res_save_dir):
             os.mkdir(args.res_save_dir)
-        os.mkdir(os.path.join(args.res_save_dir, args.exp_name))
+        if os.path.exists(os.path.join(args.res_save_dir, args.exp_name)):
+            respond = input("Experiment already exists, type [Y] to overwrite")
+            if respond != "Y":
+                exit(0)
+        else:
+            os.mkdir(os.path.join(args.res_save_dir, args.exp_name))
 
     if args.dataset == "mnist17":
         assert args.res_save_dir is not None and args.exp_name is not None
         data_loader = MNIST17DataPreprocessor(args)
-        model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes)
+        model = MNIST17Model.MNIST17Model(data_loader.n_features, data_loader.n_classes)
         aggregate_result = train_many(data_loader, model, args)
         np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), aggregate_result)
         with open(os.path.join(args.res_save_dir, args.exp_name, "commandline_args.txt"), 'w') as f:
