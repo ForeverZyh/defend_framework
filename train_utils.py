@@ -16,6 +16,7 @@ def train_many(data_loader, model, args):
         prediction_label = model.evaluate(data_loader.x_test,
                                           keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
         aggregate_result[np.arange(0, test_size), prediction_label] += 1
+        model.init()
     aggregate_result[np.arange(0, test_size), -1] = data_loader.y_test
     print(aggregate_result)
     return aggregate_result

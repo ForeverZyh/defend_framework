@@ -11,6 +11,7 @@ class MNISTModel(object):
     def __init__(self, n_features, n_classes):
         self.n_features = n_features
         self.model = self.build_model(n_features, n_classes)
+        self.weights_initialize = self.model.get_weights()
 
     def build_model(self, input_shape, n_classes):
         model = Sequential()
@@ -29,6 +30,9 @@ class MNISTModel(object):
                       optimizer=keras.optimizers.Adadelta(),
                       metrics=['accuracy'])
         return model
+
+    def init(self):
+        self.model.set_weights(self.weights_initialize)
 
     def save(self, save_path, file_name='mnist_nn'):
         save_model = self.model

@@ -15,11 +15,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # general training parameters
-    parser.add_argument("-d", "--dataset", default=None, choices=["ember", "mnist"],
+    parser.add_argument("-d", "--dataset", default=None, choices=["ember", "mnist", "mnist17"],
                         help="dataset type")
     parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument("--epochs", type=int, default=200, help="training epochs")
     parser.add_argument("--batch_size", type=int, default=16, help="batch size")
+    parser.add_argument("--gpu_id", type=str, default="0", help="gpu id for training")
 
     # poisoning defence parameters
     parser.add_argument('--k', action='store', default=None, type=int,
@@ -59,6 +60,8 @@ if __name__ == "__main__":
 
     # Set random seeds
     args = parser.parse_args()
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
+
     random.seed(args.seed)
     np.random.seed(args.seed)
     tf.random.set_seed(args.seed)
@@ -77,7 +80,7 @@ if __name__ == "__main__":
             os.mkdir(args.res_save_dir)
         os.mkdir(os.path.join(args.res_save_dir, args.exp_name))
 
-    if args.dataset == "mnist":
+    if args.dataset == "mnist17":
         assert args.res_save_dir is not None and args.exp_name is not None
         data_loader = MNIST17DataPreprocessor(args)
         model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes)

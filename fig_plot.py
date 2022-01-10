@@ -296,7 +296,7 @@ def check_NP_KL(s, r, p, _1mp1):
     return True
 
 
-def check_radius(x, k, s):
+def check_radius(x, k, s, pa):
     """
     return whether the radius is certifiable
     :param x: the number of poisoned instance
@@ -319,7 +319,17 @@ def check_radius(x, k, s):
         raise NotImplementedError
 
 
-print(check_radius(600, 600, 4))
+l_pa = Fraction(0)
+r_pa = Fraction(1)
+for i in range(50):
+    mid = (l_pa + r_pa) / 2
+    if check_radius(600, 500, 4, mid):
+        r_pa = mid
+    else:
+        l_pa = mid
+print(r_pa)
+
+# print(check_radius(600, 600, 4, 0.8))
 exit(0)
 ans = []
 for x in range(D + 1):
