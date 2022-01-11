@@ -45,7 +45,7 @@ class BoundCalculator:
         self.cache_file = os.path.join("list_counts", dataset,
                                        f"cache_{float(Ia):.2f}_{float(Ib):.2f}_{self.K}_{self.k}")
         try:
-            self.pa_lb_cache = np.load(self.cache_file + ".npy", allow_pickle=True)
+            self.pa_lb_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
         except:
             self.pa_lb_cache = dict()
         assert algorithm in ["NP", "NP+KL"]

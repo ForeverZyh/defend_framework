@@ -61,7 +61,13 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
         else:
             p_b = 1
         p_a = max(p_a, 1 - p_b)
-        ret[i] = p_a >= bound_cal.get_pa_lb(poisoned_ins_num, poisoned_feat_num)
+        if p_a >= bound_cal.get_pa_lb(poisoned_ins_num, poisoned_feat_num):
+            if majority == res[i][-1]:
+                ret[i] = 1
+            else:
+                ret[i] = -1
+        else:
+            ret[i] = 0
 
     return ret
 
@@ -73,15 +79,30 @@ if __name__ == "__main__":
     parser.add_argument("--confidence", default=0.999, type=float,
                         help="confidence level = 1 - alpha, where alpha is the significance"
                         )
+    parser.add_argument("--poisoned_feat_num", default=None, type=int,
+                        help="the poisoned feature number. None means all poisoned"
+                        )
+    parser.add_argument("--poisoned_ins_num_st", default=0, type=int,
+                        help="the start range of the poisoned instance number."
+                        )
+    parser.add_argument("--poisoned_ins_num_en", default=200, type=int,
+                        help="the end range of the poisoned instance number. (inclusive)"
+                        )
+    parser.add_argument("--poisoned_ins_num_step", default=1, type=int,
+                        help="the step of the poisoned instance number."
+                        )
 
     args = parser.parse_args()
     with open(os.path.join(args.load_dir, "commandline_args.txt"), 'r') as f:
         conf = args.confidence  # override the confidence
-        load_dir = args.load_dir
-        args.__dict__ = json.load(f)
+        args.__dict__.update(json.load(f))
         args.confidence = conf
-        args.load_dir = load_dir
-
+    poisoned_ins_num_range = range(args.poisoned_ins_num_st, args.poisoned_ins_num_en + 1, args.poisoned_ins_num_step)
+    cache_file_name = os.path.join(args.load_dir, f"plot_{args.poisoned_feat_num}")
+    if os.path.exists(cache_file_name + ".npy"):
+        cache = np.load(cache_file_name + ".npy", allow_pickle=True).item()
+    else:
+        cache = dict()
     res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
     if args.dataset == "mnist17":
         args.D = 13007
@@ -96,15 +117,29 @@ if __name__ == "__main__":
               f"Wrong: {np.mean(x == -1) * 100:.2f}%")
 
 
-    if args.select_strategy == "bagging_replace" and args.noise_strategy is None:
-        for poison_ins_num in range(0, 200, 20):
-            ret = get_abstain_bagging_replace(res, args.confidence, args.k, poison_ins_num, args.D)
+    if args.select_strategy == "bagging_replace" and (args.noise_strategy is None or args.poisoned_feat_num is None):
+        for poison_ins_num in poisoned_ins_num_range:
+            if poison_ins_num in cache:
+                ret = cache[poison_ins_num]
+            else:
+                ret = get_abstain_bagging_replace(res, args.confidence, args.k, poison_ins_num, args.D)
+                cache[poison_ins_num] = ret
+                np.save(cache_file_name, cache)
+
             output(ret)
     elif args.select_strategy == "bagging_replace" and args.noise_strategy == "feature_flipping":
         Ia = Fraction(int(args.alpha * 100), 100)
         bound_cal = BoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k,
                                     considered_degree=2, algorithm="NP+KL")
-        ret = get_abstain_bagging_replace_feature_flip(res, args.confidence, 100, 8, bound_cal)
-        output(ret)
+        for poison_ins_num in poisoned_ins_num_range:
+            if poison_ins_num in cache:
+                ret = cache[poison_ins_num]
+            else:
+                ret = get_abstain_bagging_replace_feature_flip(res, args.confidence, poison_ins_num,
+                                                               args.poisoned_feat_num, bound_cal)
+                cache[poison_ins_num] = ret
+                np.save(cache_file_name, cache)
+
+            output(ret)
     else:
         raise NotImplementedError
