@@ -7,6 +7,7 @@ import warnings
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--load_dir", type=str, help="parent dir for loading the folders")
+    parser.add_argument("--save_file_name", default="temp", type=str, help="file name for saving the pdf")
     parser.add_argument("--load_folders", type=str, help="folders for loading the plot results")
     parser.add_argument("--poisoned_feat_num", default=None, type=int,
                         help="the poisoned feature number. None means all poisoned")
@@ -34,3 +35,4 @@ if __name__ == "__main__":
     ax.set(xlim=(0, x_max), ylim=(0, 100))
     ax.legend()
     plt.show()
+    plt.savefig(f"./res/{args.save_file_name}.pdf")

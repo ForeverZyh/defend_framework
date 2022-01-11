@@ -91,6 +91,12 @@ if __name__ == "__main__":
     parser.add_argument("--poisoned_ins_num_step", default=1, type=int,
                         help="the step of the poisoned instance number."
                         )
+    parser.add_argument("--considered_degree", default=2, type=int,
+                        help="considered degree for Neyman-Pearson Lemma"
+                        )
+    parser.add_argument("--algorithm", default="NP+KL", choices=["NP", "NP+KL"],
+                        help="algorithm for computing the bound"
+                        )
 
     args = parser.parse_args()
     with open(os.path.join(args.load_dir, "commandline_args.txt"), 'r') as f:
@@ -130,7 +136,7 @@ if __name__ == "__main__":
     elif args.select_strategy == "bagging_replace" and args.noise_strategy == "feature_flipping":
         Ia = Fraction(int(args.alpha * 100), 100)
         bound_cal = BoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k,
-                                    considered_degree=2, algorithm="NP+KL")
+                                    considered_degree=args.considered_degree, algorithm=args.algorithm)
         for poison_ins_num in poisoned_ins_num_range:
             if poison_ins_num in cache:
                 ret = cache[poison_ins_num]
