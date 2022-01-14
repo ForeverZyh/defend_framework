@@ -27,5 +27,6 @@ def train_many(data_loader, model, args):
 
 def train_single(data_loader, model, args):
     # train single classifier for attacking
-    model.fit(data_loader.x_train, data_loader.y_train, args.batch_size, args.epochs)
-    model.save(args.model_save_dir)
+    model.fit(data_loader.x_train, keras.utils.to_categorical(data_loader.y_train, data_loader.n_classes),
+              args.batch_size, args.epochs)
+    # model.save(args.model_save_dir)

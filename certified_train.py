@@ -15,8 +15,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # general training parameters
-    parser.add_argument("-d", "--dataset", default=None, choices=["ember", "mnist", "mnist17"],
-                        help="dataset type")
+    parser.add_argument("-d", "--dataset", choices=["ember", "mnist", "mnist17"],
+                        help="dataset type", required=True)
     parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument("--epochs", type=int, default=200, help="training epochs")
     parser.add_argument("--batch_size", type=int, default=16, help="batch size")
@@ -30,7 +30,7 @@ if __name__ == "__main__":
                         choices=["bagging_replace", "bagging_wo_replace", "binomial"],
                         help="selection strategy")
     parser.add_argument("--noise_strategy", default=None,
-                        choices=["feature_flipping", "label_flipping", "RAB_gaussian", "RAB_uniform"],
+                        choices=["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian", "RAB_uniform"],
                         help="noise strategy")
     parser.add_argument('--K', action='store', default=2, type=int,
                         help='number of bins for discretization')
