@@ -30,8 +30,9 @@ def process_count(Ia, Ib, fn, global_d, K, v):
     if not os.path.exists(f"list_counts/{fn}"):
         os.mkdir(f"list_counts/{fn}")
 
-    if os.path.exists(f'list_counts/{fn}/complete_count_{v}_{float(Ia):.2f}_{float(Ib):.2f}.npz'):
-        npzfile = np.load(f'list_counts/{fn}/complete_count_{v}_{float(Ia):.2f}_{float(Ib):.2f}.npz', allow_pickle=True)
+    if os.path.exists(f'list_counts/{fn}/complete_count_{v}_{K}_{float(Ia):.2f}_{float(Ib):.2f}.npz'):
+        npzfile = np.load(f'list_counts/{fn}/complete_count_{v}_{K}_{float(Ia):.2f}_{float(Ib):.2f}.npz',
+                          allow_pickle=True)
         return npzfile["complete_cnt_p"], npzfile["complete_cnt_q"]
 
     m_range = [0, global_d + 1]  # m -> u in the paper, the number of feature flipped in x
@@ -85,7 +86,7 @@ def process_count(Ia, Ib, fn, global_d, K, v):
             complete_cnt_p[n - m + global_d] += c * (Ia ** (global_d - n)) * (Ib ** n)
             complete_cnt_q[n - m + global_d] += c * (Ia ** (global_d - m)) * (Ib ** m)
 
-    np.savez(f'list_counts/{fn}/complete_count_{v}_{float(Ia):.2f}_{float(Ib):.2f}',
+    np.savez(f'list_counts/{fn}/complete_count_{v}_{K}_{float(Ia):.2f}_{float(Ib):.2f}',
              complete_cnt_p=complete_cnt_p,
              complete_cnt_q=complete_cnt_q)
 
