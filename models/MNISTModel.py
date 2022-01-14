@@ -1,7 +1,8 @@
 import keras
 from keras.models import Sequential
-from keras.layers import Dense, Flatten
-from keras.layers import Conv2D
+from keras.layers import Dense, Flatten, Dropout
+from keras.layers import Conv2D, AveragePooling2D
+import tensorflow as tf
 
 from models.Model import Model
 
@@ -12,17 +13,20 @@ class MNISTModel(Model):
 
     def build_model(self, input_shape, n_classes):
         model = Sequential()
-        model.add(Conv2D(64, kernel_size=(4, 4),
+        model.add(Conv2D(16, kernel_size=(5, 5),
                          activation='relu',
-                         input_shape=input_shape,
-                         strides=2))
-        model.add(Conv2D(128, (4, 4), activation='relu', strides=2))
+                         input_shape=input_shape))
+        model.add(AveragePooling2D(pool_size=(2, 2)))
+        model.add(Conv2D(32, (5, 5), activation='relu'))
+        model.add(AveragePooling2D(pool_size=(2, 2)))
         model.add(Flatten())
-        model.add(Dense(500, activation='relu'))
-        model.add(Dense(100, activation='relu'))
+        model.add(Dropout(0.25))
+        model.add(Dense(32, activation='relu'))
+        model.add(Dropout(0.25))
+        model.add(Dense(512, activation='relu'))
         model.add(Dense(n_classes, activation='softmax'))
 
         model.compile(loss=keras.losses.categorical_crossentropy,
-                      optimizer=keras.optimizers.Adam(lr=0.01, decay=0.98),
+                      optimizer=keras.optimizers.Adam(lr=0.001),
                       metrics=['accuracy'])
         return model
