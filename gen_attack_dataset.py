@@ -8,8 +8,9 @@ import numpy as np
 import tensorflow as tf
 import keras
 
-from data_processing import MNISTDataPreprocessor
-from models import MNISTModel
+from data_processing import MNISTDataPreprocessor, MNIST17DataPreprocessor
+from models.MNISTModel import MNISTModel
+from models.MNIST17Model import MNIST17Model
 from train_utils import train_many, train_single
 from attack.BadNetAttack import BadNetAttack
 
@@ -28,7 +29,7 @@ if __name__ == "__main__":
     parser.add_argument("--attack", choices=["badnet"], help="attack algorithms", required=True)
     parser.add_argument("--consecutive", action="store_true",
                         help="Whether the poisoned features need to be inside a block")
-    parser.add_argument("--poisoned_feat_num", default=None, type=int, help="poisoned feature number")
+    parser.add_argument("--poisoned_feat_num", type=int, required=True, help="poisoned feature number")
     parser.add_argument("--poisoned_ins_rate", default=0.1, type=float, help="the rate of instances to be poisoned")
     parser.add_argument("--attack_targets", type=str,
                         help="A list of ints of length n_classes, attacking label i to its target attack_targets[i], "
@@ -87,31 +88,39 @@ if __name__ == "__main__":
         os.mkdir(filepath)
 
     if args.dataset == "mnist":
-        with open(os.path.join(filepath, "commandline_args.txt"), 'w') as f:
-            json.dump(args.__dict__, f, indent=2)
-        attack_targets = eval(args.attack_targets)
-        if not args.load:
-            data_loader = MNISTDataPreprocessor(args)
-            attack = BadNetAttack(data_loader, attack_targets, args.poisoned_feat_num,
-                                  consecutive=args.consecutive, poisoned_ins_rate=args.poisoned_ins_rate)
-            attack.attack()
-            attack.save(os.path.join(filepath, "data"))
-        else:
-            attack = BadNetAttack.load(os.path.join(filepath, "data"))
-            data_loader = attack.data_processor
+        DataPreprocessor_type = MNISTDataPreprocessor
+        Model_type = MNISTModel
+    elif args.dataset == "mnist17":
+        DataPreprocessor_type = MNIST17DataPreprocessor
+        Model_type = MNIST17Model
+    else:
+        raise NotImplementedError
 
-        model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes)
-        train_single(data_loader, model, args)
-        print("Clean Test Set:")
-        model.evaluate(data_loader.x_test, keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
-        print("Poisoned Test Set:")
-        for i in range(data_loader.n_classes):
-            idx = np.where(data_loader.y_test == i)[0]
-            if attack_targets[i] is None:
-                print(f"class {i} is not poisoned:")
-                model.evaluate(data_loader.x_test_poisoned[idx],
-                               keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes))
-            else:
-                print(f"class {i} is poisoned:")
-                model.evaluate(data_loader.x_test_poisoned[idx],
-                               keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes))
+    with open(os.path.join(filepath, "commandline_args.txt"), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
+    attack_targets = eval(args.attack_targets)
+    if not args.load:
+        data_loader = DataPreprocessor_type(args)
+        attack = BadNetAttack(data_loader, attack_targets, args.poisoned_feat_num,
+                              consecutive=args.consecutive, poisoned_ins_rate=args.poisoned_ins_rate)
+        attack.attack()
+        attack.save(os.path.join(filepath, "data"))
+    else:
+        attack = BadNetAttack.load(os.path.join(filepath, "data"))
+        data_loader = attack.data_processor
+
+    model = Model_type(data_loader.n_features, data_loader.n_classes)
+    train_single(data_loader, model, args)
+    print("Clean Test Set:")
+    model.evaluate(data_loader.x_test, keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
+    print("Poisoned Test Set:")
+    for i in range(data_loader.n_classes):
+        idx = np.where(data_loader.y_test == i)[0]
+        if attack_targets[i] is None:
+            print(f"class {i} is not poisoned:")
+            model.evaluate(data_loader.x_test_poisoned[idx],
+                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes))
+        else:
+            print(f"class {i} is poisoned:")
+            model.evaluate(data_loader.x_test_poisoned[idx],
+                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes))

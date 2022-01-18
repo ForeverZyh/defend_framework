@@ -7,8 +7,8 @@ import time
 import numpy as np
 import tensorflow as tf
 
-from data_processing import MNIST17DataPreprocessor
-from models import MNIST17Model
+from data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor
+from models import MNIST17Model, MNISTModel
 from train_utils import train_many, train_single
 
 if __name__ == "__main__":
@@ -20,6 +20,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument("--epochs", type=int, default=200, help="training epochs")
     parser.add_argument("--batch_size", type=int, default=16, help="batch size")
+    parser.add_argument("--lr", type=float, default=1e-3, help="learning rate")
     parser.add_argument("--gpu_id", type=str, default="0", help="gpu id for training")
     parser.add_argument("--data_aug", action='store_true', help="whether to use data augmentation")
 
@@ -83,11 +84,23 @@ if __name__ == "__main__":
         else:
             os.mkdir(os.path.join(args.res_save_dir, args.exp_name))
 
+    assert args.res_save_dir is not None and args.exp_name is not None
     if args.dataset == "mnist17":
-        assert args.res_save_dir is not None and args.exp_name is not None
-        data_loader = MNIST17DataPreprocessor(args)
+        if args.load_poison_dir is not None:
+            data_loader = MNIST17DataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
+        else:
+            data_loader = MNIST17DataPreprocessor(args)
         model = MNIST17Model.MNIST17Model(data_loader.n_features, data_loader.n_classes)
-        aggregate_result = train_many(data_loader, model, args)
-        np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), aggregate_result)
-        with open(os.path.join(args.res_save_dir, args.exp_name, "commandline_args.txt"), 'w') as f:
-            json.dump(args.__dict__, f, indent=2)
+    elif args.dataset == "mnist":
+        if args.load_poison_dir is not None:
+            data_loader = MNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
+        else:
+            data_loader = MNISTDataPreprocessor(args)
+        model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes)
+    else:
+        raise NotImplementedError
+
+    aggregate_result = train_many(data_loader, model, args)
+    np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), aggregate_result)
+    with open(os.path.join(args.res_save_dir, args.exp_name, "commandline_args.txt"), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)

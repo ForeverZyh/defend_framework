@@ -1,5 +1,7 @@
-import numpy as np
+import os
+import pickle
 
+import numpy as np
 from keras.datasets import mnist
 from sklearn.preprocessing import KBinsDiscretizer
 
@@ -33,7 +35,7 @@ class DataProcessor:
         if noise_strategy is not None:
             assert noise_strategy in ["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian",
                                       "RAB_uniform"]
-            if noise_strategy == "feature_flipping" or noise_strategy == "label_flipping":
+            if noise_strategy in ["feature_flipping", "label_flipping", "all_flipping"]:
                 self.K = kwargs["K"]
                 self.alpha = kwargs["alpha"]
                 if noise_strategy in ["feature_flipping", "all_flipping"]:
@@ -65,10 +67,10 @@ class DataProcessor:
                 mask = np.random.random(ret_X.shape) < self.alpha
                 delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
                 ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
-                ret_X[ret_X > 1] -= (1 + self.K) / self.K
+                ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
             if self.noise_strategy in ["label_flipping", "all_flipping"]:
                 mask = np.random.random(ret_y.shape) < self.alpha
-                delta = np.random.randint(1, self.K + 1, ret_X.shape)
+                delta = np.random.randint(1, self.K + 1, ret_y.shape)
                 ret_y = ret_y * mask + (1 - mask) * (ret_y + delta)
                 ret_y[ret_y > self.K] -= self.K + 1
             if self.noise_strategy == "RAB_gaussian":
@@ -79,8 +81,29 @@ class DataProcessor:
         return ret_X, ret_y
 
 
-class MNIST17DataPreprocessor:
+class DataPreprocessor:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def load(cls, filename, args):
+        with open(filename, "rb") as f:
+            attack = pickle.load(f)
+            this = attack.data_processor
+            this.attack = attack
+            this.data_processor = DataPreprocessor.build_processor(this.x_train, this.y_train, args)
+            return this
+
+    @staticmethod
+    def build_processor(x_train, y_train, args):
+        return DataProcessor(x_train, y_train, select_strategy=args.select_strategy, k=args.k,
+                             noise_strategy=args.noise_strategy, K=args.K, alpha=args.alpha,
+                             sigma=args.sigma, a=args.a, b=args.b)
+
+
+class MNIST17DataPreprocessor(DataPreprocessor):
     def __init__(self, args):
+        super(MNIST17DataPreprocessor, self).__init__()
         # input image dimensions
         img_rows, img_cols = 28, 28
 
@@ -110,16 +133,15 @@ class MNIST17DataPreprocessor:
         if args.noise_strategy in ["label_flipping", "all_flipping"]:
             pass
 
-        self.data_processor = DataProcessor(self.x_train, self.y_train, select_strategy=args.select_strategy, k=args.k,
-                                            noise_strategy=args.noise_strategy, K=args.K, alpha=args.alpha,
-                                            sigma=args.sigma, a=args.a, b=args.b)
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
         print('x_train shape:', x_train.shape, self.y_train.shape)
         print(x_train.shape[0], 'train samples')
         print(x_test.shape[0], 'test samples')
 
 
-class MNISTDataPreprocessor:
+class MNISTDataPreprocessor(DataPreprocessor):
     def __init__(self, args):
+        super(MNISTDataPreprocessor, self).__init__()
         # input image dimensions
         img_rows, img_cols = 28, 28
 
@@ -143,9 +165,7 @@ class MNISTDataPreprocessor:
         if args.noise_strategy in ["label_flipping", "all_flipping"]:
             pass
 
-        self.data_processor = DataProcessor(self.x_train, self.y_train, select_strategy=args.select_strategy, k=args.k,
-                                            noise_strategy=args.noise_strategy, K=args.K, alpha=args.alpha,
-                                            sigma=args.sigma, a=args.a, b=args.b)
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
         print('x_train shape:', x_train.shape, self.y_train.shape)
         print(x_train.shape[0], 'train samples')
         print(x_test.shape[0], 'test samples')

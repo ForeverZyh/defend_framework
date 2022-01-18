@@ -7,8 +7,8 @@ from models.Model import Model
 
 
 class MNIST17Model(Model):
-    def __init__(self, n_features, n_classes):
-        super(MNIST17Model, self).__init__(n_features, n_classes)
+    def __init__(self, n_features, n_classes, lr=1e-3):
+        super(MNIST17Model, self).__init__(n_features, n_classes, lr)
 
     def build_model(self, input_shape, n_classes):
         model = Sequential()
@@ -24,6 +24,6 @@ class MNIST17Model(Model):
         model.add(Dense(n_classes, activation='softmax'))
 
         model.compile(loss=keras.losses.categorical_crossentropy,
-                      optimizer=keras.optimizers.Adam(lr=0.001),
+                      optimizer=keras.optimizers.Adam(lr=self.lr),
                       metrics=['accuracy'])
         return model

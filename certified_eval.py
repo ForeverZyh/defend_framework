@@ -34,12 +34,11 @@ def get_abstain_bagging_replace(res, conf, ex_in_bag, poison_ins_num, D, poison_
         else:
             delta_lower_bound = max(p_a, 1 - p_b) - min(p_b, 1 - p_a) - 2e-50
 
-        if delta_lower_bound > delta:  # not abstain
-            if majority == res[i][-1]:
-                ret[i] = 1
-            else:
-                ret[i] = -1
+        if majority == res[i][-1]:
+            ret[i] = 1
         else:
+            ret[i] = -1
+        if delta_lower_bound <= delta:  # abstain
             ret[i] = 0
 
     return ret
@@ -60,14 +59,20 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
             p_b = beta.ppf(1 - alpha / n_classes, top_2, bags - top_2 + 1)  # p' \in [0, p_b]
         else:
             p_b = 1
-        p_a = max(p_a, 1 - p_b)
-        if p_a >= bound_cal.get_pa_lb(poisoned_ins_num, poisoned_feat_num):
-            if majority == res[i][-1]:
-                ret[i] = 1
-            else:
-                ret[i] = -1
+        if n_classes == 2:
+            p_a = max(p_a, 1 - p_b)
+        p_b = min(p_b, 1 - p_a)
+
+        if majority == res[i][-1]:
+            ret[i] = 1
         else:
-            ret[i] = 0
+            ret[i] = -1
+        if n_classes == 2:
+            if p_a < bound_cal.get_pa_lb_binary(poisoned_ins_num, poisoned_feat_num):  # abstain
+                ret[i] = 0
+        else:
+            if not bound_cal.check_radius(poisoned_ins_num, poisoned_feat_num, p_a, p_b):  # abstain
+                ret[i] = 0
 
     return ret
 
@@ -112,7 +117,10 @@ if __name__ == "__main__":
     res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
     if args.dataset == "mnist17":
         args.D = 13007
-        args.d = 28 * 28 + 1
+        args.d = 28 * 28 + int(args.noise_strategy in ["label_flipping", "all_flipping"])
+    elif args.dataset == "mnist":
+        args.D = 60000
+        args.d = 28 * 28 + int(args.noise_strategy in ["label_flipping", "all_flipping"])
     else:
         raise NotImplementedError
 
@@ -133,7 +141,8 @@ if __name__ == "__main__":
                 np.save(cache_file_name, cache)
 
             output(ret)
-    elif args.select_strategy == "bagging_replace" and args.noise_strategy == "feature_flipping":
+    elif args.select_strategy == "bagging_replace" and args.noise_strategy in ["feature_flipping", "label_flipping",
+                                                                               "all_flipping"]:
         Ia = Fraction(int(args.alpha * 100), 100)
         bound_cal = BoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k,
                                     considered_degree=args.considered_degree, algorithm=args.algorithm)

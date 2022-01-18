@@ -50,14 +50,44 @@ class BoundCalculator:
             self.pa_lb_cache = dict()
         assert algorithm in ["NP", "NP+KL"]
 
-    def check_NP_binary(self, s, remain_to_assign, p_binom):
+    def check_NP_binary(self, s, pa, p_binom):
+        return self.cal_NP_bound(s, pa, p_binom, early_stop=Fraction(1, 2)) > Fraction(1, 2)
+
+    def check_NP(self, s, pa, pb, _1mp1, p_binom):
+        """
+        :param s: the number of poisoned features
+        :param pa:
+        :param pb:
+        :param _1mp1: the likelihood of L^{l+1} ... L^{k} that we won't compute
+        :param p_binom:
+        :return: whether it is certifiable
+        """
+        lb = min(self.cal_NP_bound(s, pb, p_binom, reverse=True) + _1mp1, Fraction(1, 2))
+        return self.cal_NP_bound(s, pa - _1mp1, p_binom, early_stop=lb) > lb
+
+    def cal_NP_bound(self, s, remain_to_assign, p_binom, reverse=False, early_stop=None):
+        """
+        return the lower bound (or upper bound if reverse is True) of classification result being y* in the
+        original distribution
+        :param s: the number of poisoned features
+        :param remain_to_assign: the p of classification result being y* in the poisoned distribution
+        :param p_binom: the pmf of the binomial distribution
+        :param reverse: return upper bound (True) or lower bound (False)
+        :param early_stop: if the return value is greater or equal to the early_stop value,
+        we just return the current value
+        :return: the lower bound (or upper bound if reverse is True)
+        """
         Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, self.k
         considered_degree = self.considered_degree
         achieved = 0
 
         complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, fn, d, K, s)
+        if not reverse:
+            _range = trange(-considered_degree * d, considered_degree * d + 1)
+        else:
+            _range = trange(considered_degree * d, -considered_degree * d - 1, -1)
 
-        for m_n_delta in trange(-considered_degree * d, considered_degree * d + 1):
+        for m_n_delta in _range:
             outcome = []
             # pos_cnt = 0
             if m_n_delta == 0:
@@ -83,13 +113,13 @@ class BoundCalculator:
                 if p_delta < remain_to_assign:
                     remain_to_assign -= p_delta
                     achieved += q_delta
-                    if achieved > Fraction(1, 2):
-                        return True
+                    if early_stop is not None and achieved > early_stop:
+                        return achieved
                 else:
                     achieved += remain_to_assign / ((Ia ** (-m_n_delta)) * (Ib ** m_n_delta))
-                    return achieved > Fraction(1, 2)
+                    return achieved
 
-        return achieved > Fraction(1, 2)
+        return achieved
 
     def check_NP_KL_binary(self, s, r, p, _1mp1, p_binom):
         Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, self.k
@@ -175,7 +205,7 @@ class BoundCalculator:
 
         return True
 
-    def check_radius(self, x, s, pa):
+    def check_radius_binary(self, x, s, pa):
         """
         return whether the radius is certifiable
         :param x: the number of poisoned instance
@@ -197,14 +227,37 @@ class BoundCalculator:
         else:
             raise NotImplementedError
 
-    def get_poisoned_ins_ub(self, poisoned_feat_num, p_a):
+    def check_radius(self, x, s, pa, pb):
+        """
+        return whether the radius is certifiable
+        :param x: the number of poisoned instance
+        :param s: the number of poisoned feature
+        :param pa: the lower bound of the probability of the most likely label
+        :param pb: the upper bound of the probability of the second most likely label
+        :return: bool, whether it is certifiable
+        """
+        p_binom = [None] * (self.k + 1)
+        other_pk = Fraction(1)
+        for i in range(self.considered_degree + 1):
+            p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
+                    (1 - Fraction(x, self.D)) ** (self.k - i))
+            other_pk -= p_binom[i]
+
+        if self.algorithm == "NP":
+            return self.check_NP(s, Fraction(pa), Fraction(pb), other_pk, p_binom)
+        elif self.algorithm == "NP+KL":
+            raise NotImplementedError
+        else:
+            raise NotImplementedError
+
+    def get_poisoned_ins_ub_binary(self, poisoned_feat_num, p_a):
         # binary search O(2log(ans))
-        if not self.check_radius(0, poisoned_feat_num, p_a):
+        if not self.check_radius_binary(0, poisoned_feat_num, p_a):
             return -1
         else:
             feasible_l = -1
             for l in range(20):
-                if not self.check_radius(2 ** l, poisoned_feat_num, p_a):
+                if not self.check_radius_binary(2 ** l, poisoned_feat_num, p_a):
                     feasible_l = l - 1
                     break
 
@@ -213,18 +266,18 @@ class BoundCalculator:
             else:
                 ans = 2 ** feasible_l
                 for l in range(feasible_l - 1, -1, -1):
-                    if self.check_radius(ans + 2 ** l, poisoned_feat_num, p_a):
+                    if self.check_radius_binary(ans + 2 ** l, poisoned_feat_num, p_a):
                         ans += 2 ** l
                 return ans
 
-    def get_pa_lb(self, poisoned_ins_num, poisoned_feat_num):
+    def get_pa_lb_binary(self, poisoned_ins_num, poisoned_feat_num):
         if (poisoned_ins_num, poisoned_feat_num) in self.pa_lb_cache:
             return self.pa_lb_cache[(poisoned_ins_num, poisoned_feat_num)]
         l_pa = Fraction(0)
         r_pa = Fraction(1)
         for i in range(50):
             mid = (l_pa + r_pa) / 2
-            if self.check_radius(poisoned_ins_num, poisoned_feat_num, mid):
+            if self.check_radius_binary(poisoned_ins_num, poisoned_feat_num, mid):
                 r_pa = mid
             else:
                 l_pa = mid

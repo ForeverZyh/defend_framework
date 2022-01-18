@@ -110,7 +110,7 @@ def f(args):
     return complete_cnt[mn0]
 
 
-print(bound_cal.get_pa_lb(184, 8))
+print(bound_cal.get_pa_lb_binary(184, 8))
 
 # print(check_radius(600, 600, 4, 0.8))
 exit(0)

@@ -5,8 +5,9 @@ from keras.models import load_model
 
 
 class Model(ABC):
-    def __init__(self, n_features, n_classes):
+    def __init__(self, n_features, n_classes, lr):
         self.n_features = n_features
+        self.lr = lr
         self.model = self.build_model(n_features, n_classes)
         self.weights_initialize = self.model.get_weights()
 
@@ -25,10 +26,10 @@ class Model(ABC):
         self.model = load_model(os.path.join(save_path, file_name + '.h5'))
 
     def fit_generator(self, datagen, epochs):
-        self.model.fit_generator(datagen, epochs=epochs, verbose=0, workers=4)
+        self.model.fit_generator(datagen, epochs=epochs, verbose=1, workers=4)
 
     def fit(self, X, y, batch_size, epochs):
-        self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4)
+        self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=1, workers=4)
 
     def evaluate(self, x_test, y_test):
         score = self.model.evaluate(x_test, y_test, verbose=0)
