@@ -62,7 +62,8 @@ class BoundCalculator:
         :param p_binom:
         :return: whether it is certifiable
         """
-        lb = min(self.cal_NP_bound(s, pb, p_binom, reverse=True) + _1mp1, Fraction(1, 2))
+        lb = min(self.cal_NP_bound(s, pb, p_binom, reverse=True, early_stop=Fraction(1, 2) - _1mp1) + _1mp1,
+                 Fraction(1, 2))
         return self.cal_NP_bound(s, pa - _1mp1, p_binom, early_stop=lb) > lb
 
     def cal_NP_bound(self, s, remain_to_assign, p_binom, reverse=False, early_stop=None):
@@ -83,9 +84,9 @@ class BoundCalculator:
 
         complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, fn, d, K, s)
         if not reverse:
-            _range = trange(-considered_degree * d, considered_degree * d + 1)
+            _range = range(-considered_degree * d, considered_degree * d + 1)
         else:
-            _range = trange(considered_degree * d, -considered_degree * d - 1, -1)
+            _range = range(considered_degree * d, -considered_degree * d - 1, -1)
 
         for m_n_delta in _range:
             outcome = []
@@ -130,7 +131,7 @@ class BoundCalculator:
 
         complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, fn, d, K, s)
 
-        for m_n_delta in trange(-considered_degree * d, considered_degree * d + 1):
+        for m_n_delta in range(-considered_degree * d, considered_degree * d + 1):
             outcome = []
             # pos_cnt = 0
             if m_n_delta == 0:

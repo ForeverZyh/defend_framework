@@ -5,8 +5,39 @@ from fractions import Fraction
 
 import numpy as np
 from scipy.stats import beta
+from tqdm import tqdm
 
 from cal_bound import BoundCalculator
+
+
+def output(x):
+    print(f"Certified Accuracy: {np.mean(x == 1) * 100:.2f}%, "
+          f"Abstained: {np.mean(x == 0) * 100:.2f}%, "
+          f"Wrong: {np.mean(x == -1) * 100:.2f}%")
+
+
+class Metric:
+    def __init__(self):
+        self.ori_acc_cnt = 0
+        self.cert_acc_cnt = 0
+        self.abstain_cnt = 0
+        self.wrong_cnt = 0
+        self.cnt = 0
+
+    def update(self, ori, final):
+        self.cnt += 1
+        if ori == 1:
+            self.ori_acc_cnt += 1
+        if final == 0:
+            self.abstain_cnt += 1
+        elif final == 1:
+            self.cert_acc_cnt += 1
+        else:
+            self.wrong_cnt += 1
+
+    def get_postfix(self):
+        return {'cert_acc': self.cert_acc_cnt / self.cnt, 'abstain_r': self.abstain_cnt / self.cnt,
+                'wrong_r': self.wrong_cnt / self.cnt, 'ori_acc': self.ori_acc_cnt / self.cnt}
 
 
 def get_abstain_bagging_replace(res, conf, ex_in_bag, poison_ins_num, D, poison_feat_num=None, d=None):
@@ -16,30 +47,37 @@ def get_abstain_bagging_replace(res, conf, ex_in_bag, poison_ins_num, D, poison_
     alpha = (1 - conf) / res.shape[0]
     n_classes = res.shape[1] - 1
     bags = np.sum(res[0][:-1])
-    for i in range(len(res)):
-        majority = np.argmax(res[i][:-1])
-        top_1 = res[i][majority]
-        top_2 = max(res[i][j] for j in range(n_classes) if j != majority)
-        p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p \in [p_a, 1]
-        if top_2 > 0:
-            p_b = beta.ppf(1 - alpha / n_classes, top_2, bags - top_2 + 1)  # p' \in [0, p_b]
-        else:
-            p_b = 1
-        # p + p' <= 1 if n_classes == 2, else p + p' == 1
-        # p - p' >= ?
-        # E.g., p_a = 0.7, p_b = 0.4, p - p' >= 0.7 - 0.3 = 0.4
-        # E.g., p_a = 0.7, p_b = 0.2, p - p' >= 0.7 - 0.2 = 0.5
-        if n_classes > 2:
-            delta_lower_bound = p_a - min(p_b, 1 - p_a) - 2e-50
-        else:
-            delta_lower_bound = max(p_a, 1 - p_b) - min(p_b, 1 - p_a) - 2e-50
 
-        if majority == res[i][-1]:
-            ret[i] = 1
-        else:
-            ret[i] = -1
-        if delta_lower_bound <= delta:  # abstain
-            ret[i] = 0
+    with tqdm(total=len(res)) as progress_bar:
+        metric = Metric()
+        for i in range(len(res)):
+            majority = np.argmax(res[i][:-1])
+            top_1 = res[i][majority]
+            top_2 = max(res[i][j] for j in range(n_classes) if j != majority)
+            p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p \in [p_a, 1]
+            if top_2 > 0:
+                p_b = beta.ppf(1 - alpha / n_classes, top_2, bags - top_2 + 1)  # p' \in [0, p_b]
+            else:
+                p_b = 1
+            # p + p' <= 1 if n_classes == 2, else p + p' == 1
+            # p - p' >= ?
+            # E.g., p_a = 0.7, p_b = 0.4, p - p' >= 0.7 - 0.3 = 0.4
+            # E.g., p_a = 0.7, p_b = 0.2, p - p' >= 0.7 - 0.2 = 0.5
+            if n_classes > 2:
+                delta_lower_bound = p_a - min(p_b, 1 - p_a) - 2e-50
+            else:
+                delta_lower_bound = max(p_a, 1 - p_b) - min(p_b, 1 - p_a) - 2e-50
+
+            if majority == res[i][-1]:
+                ret[i] = 1
+            else:
+                ret[i] = -1
+            ori = ret[i]
+            if delta_lower_bound <= delta:  # abstain
+                ret[i] = 0
+            metric.update(ori, ret[i])
+            progress_bar.set_postfix(metric.get_postfix())
+            progress_bar.update(1)
 
     return ret
 
@@ -50,29 +88,35 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
     alpha = (1 - conf) / res.shape[0]
     n_classes = res.shape[1] - 1
     bags = np.sum(res[0][:-1])
-    for i in range(len(res)):
-        majority = np.argmax(res[i][:-1])
-        top_1 = res[i][majority]
-        top_2 = max(res[i][j] for j in range(n_classes) if j != majority)
-        p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p \in [p_a, 1]
-        if top_2 > 0:
-            p_b = beta.ppf(1 - alpha / n_classes, top_2, bags - top_2 + 1)  # p' \in [0, p_b]
-        else:
-            p_b = 1
-        if n_classes == 2:
-            p_a = max(p_a, 1 - p_b)
-        p_b = min(p_b, 1 - p_a)
+    with tqdm(total=len(res)) as progress_bar:
+        metric = Metric()
+        for i in range(len(res)):
+            majority = np.argmax(res[i][:-1])
+            top_1 = res[i][majority]
+            top_2 = max(res[i][j] for j in range(n_classes) if j != majority)
+            p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p \in [p_a, 1]
+            if top_2 > 0:
+                p_b = beta.ppf(1 - alpha / n_classes, top_2, bags - top_2 + 1)  # p' \in [0, p_b]
+            else:
+                p_b = 1
+            if n_classes == 2:
+                p_a = max(p_a, 1 - p_b)
+            p_b = min(p_b, 1 - p_a)
 
-        if majority == res[i][-1]:
-            ret[i] = 1
-        else:
-            ret[i] = -1
-        if n_classes == 2:
-            if p_a < bound_cal.get_pa_lb_binary(poisoned_ins_num, poisoned_feat_num):  # abstain
-                ret[i] = 0
-        else:
-            if not bound_cal.check_radius(poisoned_ins_num, poisoned_feat_num, p_a, p_b):  # abstain
-                ret[i] = 0
+            if majority == res[i][-1]:
+                ret[i] = 1
+            else:
+                ret[i] = -1
+            ori = ret[i]
+            if n_classes == 2:
+                if p_a < bound_cal.get_pa_lb_binary(poisoned_ins_num, poisoned_feat_num):  # abstain
+                    ret[i] = 0
+            else:
+                if not bound_cal.check_radius(poisoned_ins_num, poisoned_feat_num, p_a, p_b):  # abstain
+                    ret[i] = 0
+            metric.update(ori, ret[i])
+            progress_bar.set_postfix(metric.get_postfix())
+            progress_bar.update(1)
 
     return ret
 
@@ -124,13 +168,6 @@ if __name__ == "__main__":
     else:
         raise NotImplementedError
 
-
-    def output(x):
-        print(f"Certified Accuracy: {np.mean(x == 1) * 100:.2f}%, "
-              f"Abstained: {np.mean(x == 0) * 100:.2f}%, "
-              f"Wrong: {np.mean(x == -1) * 100:.2f}%")
-
-
     if args.select_strategy == "bagging_replace" and (args.noise_strategy is None or args.poisoned_feat_num is None):
         for poison_ins_num in poisoned_ins_num_range:
             if poison_ins_num in cache:
@@ -140,7 +177,7 @@ if __name__ == "__main__":
                 cache[poison_ins_num] = ret
                 np.save(cache_file_name, cache)
 
-            output(ret)
+            # output(ret)
     elif args.select_strategy == "bagging_replace" and args.noise_strategy in ["feature_flipping", "label_flipping",
                                                                                "all_flipping"]:
         Ia = Fraction(int(args.alpha * 100), 100)
@@ -155,6 +192,6 @@ if __name__ == "__main__":
                 cache[poison_ins_num] = ret
                 np.save(cache_file_name, cache)
 
-            output(ret)
+            # output(ret)
     else:
         raise NotImplementedError
