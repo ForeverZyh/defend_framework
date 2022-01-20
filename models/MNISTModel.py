@@ -2,6 +2,7 @@ import keras
 from keras.models import Sequential
 from keras.layers import Dense, Flatten, Dropout
 from keras.layers import Conv2D, AveragePooling2D
+from keras.regularizers import l2
 import tensorflow as tf
 
 from models.Model import Model
@@ -12,6 +13,7 @@ class MNISTModel(Model):
         super(MNISTModel, self).__init__(n_features, n_classes, lr)
 
     def build_model(self, input_shape, n_classes):
+        reg = l2(1e-3)
         model = Sequential()
         model.add(Conv2D(16, kernel_size=(5, 5),
                          activation='relu',
@@ -21,9 +23,9 @@ class MNISTModel(Model):
         model.add(AveragePooling2D(pool_size=(2, 2)))
         model.add(Flatten())
         model.add(Dropout(0.25))
-        model.add(Dense(32, activation='relu'))
+        model.add(Dense(32, activation='relu', kernel_regularizer=reg, bias_regularizer=reg))
         model.add(Dropout(0.25))
-        model.add(Dense(512, activation='relu'))
+        model.add(Dense(512, activation='relu', kernel_regularizer=reg, bias_regularizer=reg))
         model.add(Dense(n_classes, activation='softmax'))
 
         model.compile(loss=keras.losses.categorical_crossentropy,
