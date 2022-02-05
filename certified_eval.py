@@ -144,16 +144,6 @@ if __name__ == "__main__":
     parser.add_argument("--poisoned_ins_num_step", default=1, type=int,
                         help="the step of the poisoned instance number."
                         )
-    parser.add_argument("--considered_degree", default=2, type=int,
-                        help="considered degree for Neyman-Pearson Lemma"
-                        )
-    parser.add_argument("--algorithm", default="NP+KL", choices=["NP", "NP+KL", "NP+NP"],
-                        help="algorithm for computing the bound"
-                        )
-    parser.add_argument("--comp_bound_timeout", default=4e13, type=int,
-                        help="the computation bound for preprocessing. time complexity is O(d^3k^4), "
-                             "a single preprocessing runs 35~mins when the bound is 8e11"
-                        )
 
     args = parser.parse_args()
     with open(os.path.join(args.load_dir, "commandline_args.txt"), 'r') as f:
@@ -162,10 +152,13 @@ if __name__ == "__main__":
         args.confidence = conf
     poisoned_ins_num_range = range(args.poisoned_ins_num_st, args.poisoned_ins_num_en + 1, args.poisoned_ins_num_step)
     if os.path.exists(args.cache_filename + ".npy"):
-        respond = input("Experiment already exists, type [Y] to overwrite")
-        if respond != "Y":
+        respond = input("Experiment already exists, type [O] to overwrite, type [R] to resume")
+        if respond == "O":
+            cache = dict()
+        elif respond == "R":
+            cache = np.load(args.cache_filename + ".npy", allow_pickle=True).item()
+        else:
             exit(0)
-        cache = np.load(args.cache_filename + ".npy", allow_pickle=True).item()
     else:
         cache = dict()
     res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
@@ -208,9 +201,7 @@ if __name__ == "__main__":
     elif args.select_strategy == "bagging_replace" and args.noise_strategy in ["feature_flipping", "label_flipping",
                                                                                "all_flipping"]:
         Ia = Fraction(int(args.alpha * 100), 100)
-        bound_cal = BoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k,
-                                    considered_degree=args.considered_degree, algorithm=args.algorithm,
-                                    comp_bound_timeout=args.comp_bound_timeout)
+        bound_cal = BoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k)
         for poison_ins_num in poisoned_ins_num_range:
             if poison_ins_num in cache:
                 ret = cache[poison_ins_num]
@@ -218,7 +209,7 @@ if __name__ == "__main__":
                 ret = get_abstain_bagging_replace_feature_flip(res, args.confidence, poison_ins_num,
                                                                args.poisoned_feat_num, bound_cal)
                 cache[poison_ins_num] = ret
-                np.save(cache_file_name, cache)
+                np.save(args.cache_filename, cache)
 
             # output(ret)
     else:
