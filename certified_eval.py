@@ -127,6 +127,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--load_dir", default=None, type=str,
                         help="dir for loading the aggregate results and commandline args")
+    parser.add_argument("--cache_filename", default=None, type=str,
+                        help="name to cache the file", required=True)
     parser.add_argument("--confidence", default=0.999, type=float,
                         help="confidence level = 1 - alpha, where alpha is the significance"
                         )
@@ -152,7 +154,6 @@ if __name__ == "__main__":
                         help="the computation bound for preprocessing. time complexity is O(d^3k^4), "
                              "a single preprocessing runs 35~mins when the bound is 8e11"
                         )
-    parser.add_argument("--force_write", action='store_true', help="whether to not use the stored values (force write)")
 
     args = parser.parse_args()
     with open(os.path.join(args.load_dir, "commandline_args.txt"), 'r') as f:
@@ -160,9 +161,11 @@ if __name__ == "__main__":
         args.__dict__.update(json.load(f))
         args.confidence = conf
     poisoned_ins_num_range = range(args.poisoned_ins_num_st, args.poisoned_ins_num_en + 1, args.poisoned_ins_num_step)
-    cache_file_name = os.path.join(args.load_dir, f"plot_{args.poisoned_feat_num}")
-    if os.path.exists(cache_file_name + ".npy") and not args.force_write:
-        cache = np.load(cache_file_name + ".npy", allow_pickle=True).item()
+    if os.path.exists(args.cache_filename + ".npy"):
+        respond = input("Experiment already exists, type [Y] to overwrite")
+        if respond != "Y":
+            exit(0)
+        cache = np.load(args.cache_filename + ".npy", allow_pickle=True).item()
     else:
         cache = dict()
     res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
