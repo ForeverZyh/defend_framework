@@ -27,10 +27,23 @@ if __name__ == "__main__":
             res = dict(np.load(os.path.join(folder, f"plot_{args.poisoned_feat_num}.npy"), allow_pickle=True).item())
             x = sorted(list(res.keys()))
             x_max = max(x_max, max(x))
-            y = [np.mean(res[i] == 1) * 100 for i in x]
-            ax.plot(x, y, label=folder_)
         else:
             warnings.warn(f"{os.path.join(folder, f'plot_{args.poisoned_feat_num}.npy')} does not detected!")
+
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = prop_cycle.by_key()['color']
+    for i, folder_ in enumerate(folders):
+        folder = os.path.join(args.load_dir, folder_)
+        if os.path.exists(os.path.join(folder, f"plot_{args.poisoned_feat_num}.npy")):
+            res = dict(np.load(os.path.join(folder, f"plot_{args.poisoned_feat_num}.npy"), allow_pickle=True).item())
+            x = sorted(list(res.keys()))
+            y = [np.mean(res[i] == 1) * 100 for i in x]
+            if x[-1] != x_max:
+                x.append(x_max)
+                y.append(0)
+            ax.plot(x, y, label=folder_, color=colors[i])
+            ax.plot(x, [y[0]] * len(x), color=colors[i], linestyle='dashed', linewidth=0.5)
+
 
     ax.set(xlim=(0, x_max), ylim=(0, 100))
     ax.legend()

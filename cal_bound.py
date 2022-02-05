@@ -43,7 +43,7 @@ class BoundCalculator:
         self.D = D
         self.d = d
         self.cache_file = os.path.join("list_counts", dataset,
-                                       f"cache_{float(Ia):.2f}_{float(Ib):.2f}_{self.K}_{self.k}")
+                                       f"cache_{float(Ia):.2f}_{float(Ib):.2f}_{self.K}_{self.k}_{self.algorithm}")
         try:
             self.pa_lb_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
         except:
