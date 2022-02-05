@@ -91,26 +91,27 @@ class BoundCalculator:
             complete_cnt_ps = [[1], complete_cnt_p]
             complete_cnt_qs = [[1], complete_cnt_q]
             # compute convolutions
-            for i in range(2, self.k + 1):
+            for i in range(2, k + 1):
                 complete_cnt_ps.append([0] * (i * d * 2 + 1))
                 complete_cnt_qs.append([0] * (i * d * 2 + 1))
                 for j in range(d * 2 + 1):
-                    for k in range(d * (i - 1) * 2 + 1):
-                        complete_cnt_ps[i][j + k] += complete_cnt_ps[1][j] * complete_cnt_ps[i - 1][k]
-                        complete_cnt_qs[i][j + k] += complete_cnt_qs[1][j] * complete_cnt_qs[i - 1][k]
+                    if complete_cnt_ps[1][j] > 0 or complete_cnt_qs[1][j] > 0:
+                        for k_ in range(d * (i - 1) * 2 + 1):
+                            complete_cnt_ps[i][j + k_] += complete_cnt_ps[1][j] * complete_cnt_ps[i - 1][k_]
+                            complete_cnt_qs[i][j + k_] += complete_cnt_qs[1][j] * complete_cnt_qs[i - 1][k_]
             np.savez(filename,
                      complete_cnt_ps=complete_cnt_ps,
                      complete_cnt_qs=complete_cnt_qs)
             print("save file " + run_name + ".npz")
 
         if not reverse:
-            _range = range(-self.k * d, self.k * d + 1)
+            _range = range(-k * d, k * d + 1)
         else:
-            _range = range(self.k * d, -self.k * d - 1, -1)
+            _range = range(k * d, -k * d - 1, -1)
 
         for m_n_delta in _range:
             outcome = []
-            for i in range(self.k + 1):
+            for i in range(k + 1):
                 if -i * d <= m_n_delta <= i * d:
                     outcome.append([complete_cnt_ps[i][m_n_delta + i * d], complete_cnt_qs[i][m_n_delta + i * d], i])
 
