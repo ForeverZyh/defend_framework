@@ -31,27 +31,37 @@ def get_KL_divergence_cf(theta_a, kl, theta_b=None):
 
 
 class BoundCalculator:
-    def __init__(self, Ia, Ib, dataset, D, d, K, k, considered_degree=2, algorithm="NP+KL"):
+    def __init__(self, Ia, Ib, dataset, D, d, K, k, considered_degree=2, algorithm="NP+NP", comp_bound_timeout=10000):
         self.considered_degree = considered_degree
-        self.algorithm = algorithm
+        assert self.considered_degree <= 2
         self.Ia = Ia
         self.Ib = Ib
         self.K = K
         self.k = k
+        self.comp_bound_timeout = comp_bound_timeout
+        if algorithm == "NP+NP" and comp_bound_timeout < ((k * d) ** 3) * k:
+            algorithm = "NP"
+        self.algorithm = algorithm
 
         self.fn = dataset
+        if not os.path.exists(os.path.join("list_counts", dataset)):
+            os.mkdir(os.path.join("list_counts", dataset))
+
         self.D = D
         self.d = d
         self.cache_file = os.path.join("list_counts", dataset,
-                                       f"cache_{float(Ia):.2f}_{float(Ib):.2f}_{self.K}_{self.k}_{self.algorithm}")
+                                       f"cache_{str(Ia).replace('/', '__')}_{str(Ib).replace('/', '__')}_{K}_{k}_{d}_"
+                                       f"{algorithm}_{considered_degree}")
         try:
             self.pa_lb_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
         except:
             self.pa_lb_cache = dict()
-        assert algorithm in ["NP", "NP+KL"]
 
     def check_NP_binary(self, s, pa, p_binom):
         return self.cal_NP_bound(s, pa, p_binom, early_stop=Fraction(1, 2)) > Fraction(1, 2)
+
+    def check_NP_NP_binary(self, s, pa, p_binom):
+        return self.cal_NP_NP_bound(s, pa, p_binom, early_stop=Fraction(1, 2)) > Fraction(1, 2)
 
     def check_NP(self, s, pa, pb, _1mp1, p_binom):
         """
@@ -65,6 +75,17 @@ class BoundCalculator:
         lb = min(self.cal_NP_bound(s, pb, p_binom, reverse=True, early_stop=Fraction(1, 2) - _1mp1) + _1mp1,
                  Fraction(1, 2))
         return self.cal_NP_bound(s, pa - _1mp1, p_binom, early_stop=lb) > lb
+
+    def check_NP_NP(self, s, pa, pb, p_binom):
+        """
+        :param s: the number of poisoned features
+        :param pa:
+        :param pb:
+        :param p_binom:
+        :return: whether it is certifiable
+        """
+        lb = min(self.cal_NP_NP_bound(s, pb, p_binom, reverse=True, early_stop=Fraction(1, 2)), Fraction(1, 2))
+        return self.cal_NP_NP_bound(s, pa, p_binom, early_stop=lb) > lb
 
     def cal_NP_bound(self, s, remain_to_assign, p_binom, reverse=False, early_stop=None):
         """
@@ -82,7 +103,7 @@ class BoundCalculator:
         considered_degree = self.considered_degree
         achieved = 0
 
-        complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, fn, d, K, s)
+        complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, d, K, s)
         if not reverse:
             _range = range(-considered_degree * d, considered_degree * d + 1)
         else:
@@ -122,6 +143,72 @@ class BoundCalculator:
 
         return achieved
 
+    def cal_NP_NP_bound(self, s, remain_to_assign, p_binom, reverse=False, early_stop=None):
+        """
+        return the lower bound (or upper bound if reverse is True) of classification result being y* in the
+        original distribution
+        :param s: the number of poisoned features
+        :param remain_to_assign: the p of classification result being y* in the poisoned distribution
+        :param p_binom: the pmf of the binomial distribution
+        :param reverse: return upper bound (True) or lower bound (False)
+        :param early_stop: if the return value is greater or equal to the early_stop value,
+        we just return the current value
+        :return: the lower bound (or upper bound if reverse is True)
+        """
+        Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, self.k
+        considered_degree = self.considered_degree
+        achieved = 0
+
+        complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, d, K, s)
+        complete_cnt_ps = [None] * (k + 1)
+        complete_cnt_qs = [None] * (k + 1)
+
+        for i in range(considered_degree + 1, k + 1):
+            complete_cnt_ps[i], complete_cnt_qs[i] = process_count(Ia, Ib, d * k, K, s * i)
+
+        if not reverse:
+            _range = range(-d * k, d * k + 1)
+        else:
+            _range = range(d * k, -d * k - 1, -1)
+
+        for m_n_delta in _range:
+            outcome = []
+            if -considered_degree * d <= m_n_delta <= considered_degree * d:
+                # pos_cnt = 0
+                if m_n_delta == 0:
+                    outcome.append([1, 1, 0])
+                # pos_cnt = 1
+                if considered_degree >= 1 and d >= abs(m_n_delta) and complete_cnt_p[m_n_delta + d] > 0:
+                    outcome.append([complete_cnt_p[m_n_delta + d], complete_cnt_q[m_n_delta + d], 1])
+                # pos_cnt = 2
+                if considered_degree >= 2:
+                    cnt_p = sum(complete_cnt_p[mn0 + d] * complete_cnt_p[m_n_delta - mn0 + d] for mn0 in
+                                range(max(-d, m_n_delta - d), min(d, m_n_delta + d) + 1))
+                    cnt_q = sum(complete_cnt_q[mn0 + d] * complete_cnt_q[m_n_delta - mn0 + d] for mn0 in
+                                range(max(-d, m_n_delta - d), min(d, m_n_delta + d) + 1))
+                    if cnt_p > 0:
+                        outcome.append([cnt_p, cnt_q, 2])
+
+            for i in range(considered_degree + 1, k + 1):
+                outcome.append([complete_cnt_ps[i][m_n_delta + d * k], complete_cnt_qs[i][m_n_delta + d * k], i])
+
+            for i in range(len(outcome)):
+                p_cnt, q_cnt, poison_cnt = outcome[i]
+
+                q_delta = q_cnt * p_binom[poison_cnt]
+                p_delta = p_cnt * p_binom[poison_cnt]
+
+                if p_delta < remain_to_assign:
+                    remain_to_assign -= p_delta
+                    achieved += q_delta
+                    if early_stop is not None and achieved > early_stop:
+                        return achieved
+                else:
+                    achieved += remain_to_assign / ((Ia ** (-m_n_delta)) * (Ib ** m_n_delta))
+                    return achieved
+
+        return achieved
+
     def check_NP_KL_binary(self, s, r, p, _1mp1, p_binom):
         Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, self.k
         considered_degree = self.considered_degree
@@ -129,7 +216,7 @@ class BoundCalculator:
         achieved = 0
         assigned = 0
 
-        complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, fn, d, K, s)
+        complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, d, K, s)
 
         for m_n_delta in range(-considered_degree * d, considered_degree * d + 1):
             outcome = []
@@ -216,13 +303,19 @@ class BoundCalculator:
         """
         p_binom = [None] * (self.k + 1)
         other_pk = Fraction(1)
-        for i in range(self.considered_degree + 1):
+        for i in range(min(self.considered_degree, self.k) + 1):
             p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
                     (1 - Fraction(x, self.D)) ** (self.k - i))
             other_pk -= p_binom[i]
 
         if self.algorithm == "NP":
             return self.check_NP_binary(s, Fraction(pa) - other_pk, p_binom)
+        elif self.algorithm == "NP+NP":
+            for i in range(self.considered_degree + 1, self.k + 1):
+                p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
+                        (1 - Fraction(x, self.D)) ** (self.k - i))
+            # instead of subtract other_pk, we will look them into details
+            return self.check_NP_NP_binary(s, Fraction(pa), p_binom)
         elif self.algorithm == "NP+KL":
             return self.check_NP_KL_binary(s, x, Fraction(pa), other_pk, p_binom)
         else:
@@ -248,6 +341,12 @@ class BoundCalculator:
             return self.check_NP(s, Fraction(pa), Fraction(pb), other_pk, p_binom)
         elif self.algorithm == "NP+KL":
             raise NotImplementedError
+        elif self.algorithm == "NP+NP":
+            for i in range(self.considered_degree + 1, self.k + 1):
+                p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
+                        (1 - Fraction(x, self.D)) ** (self.k - i))
+            # instead of subtract other_pk, we will look them into details
+            return self.check_NP_NP(s, Fraction(pa), Fraction(pb), p_binom)
         else:
             raise NotImplementedError
 

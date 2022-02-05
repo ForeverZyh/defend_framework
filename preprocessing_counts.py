@@ -2,11 +2,9 @@
 From
 """
 import numpy as np
-from scipy.special import comb, factorial
-from time import time
+from scipy.special import comb
 import os
-from tqdm import tqdm
-from fractions import Fraction
+from tqdm import trange
 
 global_comb = dict()
 global_powe = dict()
@@ -26,15 +24,17 @@ def my_powe(k, p):
     return global_powe[(k, p)]
 
 
-def process_count(Ia, Ib, fn, global_d, K, v):
-    if not os.path.exists(f"list_counts/{fn}"):
-        os.mkdir(f"list_counts/{fn}")
+def process_count(Ia, Ib, global_d, K, v):
+    run_name = f'complete_count_{v}_{K}_{str(Ia).replace("/", "__")}_{str(Ib).replace("/", "__")}_{global_d}'
+    if not os.path.exists(f"list_counts"):
+        os.mkdir(f"list_counts")
 
-    if os.path.exists(f'list_counts/{fn}/complete_count_{v}_{K}_{float(Ia):.2f}_{float(Ib):.2f}.npz'):
-        npzfile = np.load(f'list_counts/{fn}/complete_count_{v}_{K}_{float(Ia):.2f}_{float(Ib):.2f}.npz',
-                          allow_pickle=True)
+    filename = f'list_counts/{run_name}.npz'
+    if os.path.exists(filename):
+        npzfile = np.load(filename, allow_pickle=True)
         return npzfile["complete_cnt_p"], npzfile["complete_cnt_q"]
 
+    print(run_name)
     m_range = [0, global_d + 1]  # m -> u in the paper, the number of feature flipped in x
 
     def get_count(d, m, n, v):
@@ -65,29 +65,22 @@ def process_count(Ia, Ib, fn, global_d, K, v):
 
             return c
 
-    ttl = 0
-    complete_cnt = []
-    for m in range(m_range[0], m_range[1]):
+    complete_cnt_p = [0] * (global_d * 2 + 1)
+    complete_cnt_q = [0] * (global_d * 2 + 1)
+    for m in trange(m_range[0], m_range[1]):
         for n in range(m, min(m + v, global_d) + 1):  # n -> v the number of feature flipped in x'
             c = get_count(global_d, m, n, v)
             if c != 0:
-                complete_cnt.append(((m, n), c))
-                ttl += c  # * (n - m) * (a ** (global_d - m)) * (b ** m)
+                complete_cnt_p[m - n + global_d] += c * my_powe(Ia, global_d - m) * my_powe(Ib, m)
+                complete_cnt_q[m - n + global_d] += c * my_powe(Ia, global_d - n) * my_powe(Ib, n)
                 # symmetric between d, m, n, v and d, n, m, v
                 if n > m:
-                    ttl += c  # * (m - n) * (a ** (global_d - n)) * (b ** n)
+                    complete_cnt_p[n - m + global_d] += c * my_powe(Ia, global_d - n) * my_powe(Ib, n)
+                    complete_cnt_q[n - m + global_d] += c * my_powe(Ia, global_d - m) * my_powe(Ib, m)
 
-    complete_cnt_p = [0] * (global_d * 2 + 1)
-    complete_cnt_q = [0] * (global_d * 2 + 1)
-    for ((m, n), c) in tqdm(complete_cnt):
-        complete_cnt_p[m - n + global_d] += c * (Ia ** (global_d - m)) * (Ib ** m)
-        complete_cnt_q[m - n + global_d] += c * (Ia ** (global_d - n)) * (Ib ** n)
-        if m != n:
-            complete_cnt_p[n - m + global_d] += c * (Ia ** (global_d - n)) * (Ib ** n)
-            complete_cnt_q[n - m + global_d] += c * (Ia ** (global_d - m)) * (Ib ** m)
-
-    np.savez(f'list_counts/{fn}/complete_count_{v}_{K}_{float(Ia):.2f}_{float(Ib):.2f}',
+    np.savez(filename,
              complete_cnt_p=complete_cnt_p,
              complete_cnt_q=complete_cnt_q)
+    print("save file " + run_name + ".npz")
 
     return complete_cnt_p, complete_cnt_q

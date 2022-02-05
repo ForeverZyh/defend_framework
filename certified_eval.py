@@ -145,9 +145,14 @@ if __name__ == "__main__":
     parser.add_argument("--considered_degree", default=2, type=int,
                         help="considered degree for Neyman-Pearson Lemma"
                         )
-    parser.add_argument("--algorithm", default="NP+KL", choices=["NP", "NP+KL"],
+    parser.add_argument("--algorithm", default="NP+KL", choices=["NP", "NP+KL", "NP+NP"],
                         help="algorithm for computing the bound"
                         )
+    parser.add_argument("--comp_bound_timeout", default=4e13, type=int,
+                        help="the computation bound for preprocessing. time complexity is O(d^3k^4), "
+                             "a single preprocessing runs 35~mins when the bound is 8e11"
+                        )
+    parser.add_argument("--force_write", action='store_true', help="whether to not use the stored values (force write)")
 
     args = parser.parse_args()
     with open(os.path.join(args.load_dir, "commandline_args.txt"), 'r') as f:
@@ -156,17 +161,34 @@ if __name__ == "__main__":
         args.confidence = conf
     poisoned_ins_num_range = range(args.poisoned_ins_num_st, args.poisoned_ins_num_en + 1, args.poisoned_ins_num_step)
     cache_file_name = os.path.join(args.load_dir, f"plot_{args.poisoned_feat_num}")
-    if os.path.exists(cache_file_name + ".npy"):
+    if os.path.exists(cache_file_name + ".npy") and not args.force_write:
         cache = np.load(cache_file_name + ".npy", allow_pickle=True).item()
     else:
         cache = dict()
     res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
     if args.dataset == "mnist17":
         args.D = 13007
-        args.d = 28 * 28 + int(args.noise_strategy in ["label_flipping", "all_flipping"])
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 28 * 28
+            elif args.noise_strategy == "all_flipping":
+                args.d = 28 * 28 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
+
     elif args.dataset == "mnist":
         args.D = 60000
-        args.d = 28 * 28 + int(args.noise_strategy in ["label_flipping", "all_flipping"])
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 28 * 28
+            elif args.noise_strategy == "all_flipping":
+                args.d = 28 * 28 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
     else:
         raise NotImplementedError
 
@@ -184,7 +206,8 @@ if __name__ == "__main__":
                                                                                "all_flipping"]:
         Ia = Fraction(int(args.alpha * 100), 100)
         bound_cal = BoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k,
-                                    considered_degree=args.considered_degree, algorithm=args.algorithm)
+                                    considered_degree=args.considered_degree, algorithm=args.algorithm,
+                                    comp_bound_timeout=args.comp_bound_timeout)
         for poison_ins_num in poisoned_ins_num_range:
             if poison_ins_num in cache:
                 ret = cache[poison_ins_num]
