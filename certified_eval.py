@@ -202,7 +202,7 @@ if __name__ == "__main__":
             else:
                 ret = get_abstain_bagging_replace(res, args.confidence, args.k, poison_ins_num, args.D)
                 cache[poison_ins_num] = ret
-                np.save(cache_file_name, cache)
+                np.save(args.cache_filename, cache)
 
             # output(ret)
     elif args.select_strategy == "bagging_replace" and args.noise_strategy in ["feature_flipping", "label_flipping",
