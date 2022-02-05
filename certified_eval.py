@@ -54,11 +54,12 @@ def get_abstain_bagging_replace(res, conf, ex_in_bag, poison_ins_num, D, poison_
             majority = np.argmax(res[i][:-1])
             top_1 = res[i][majority]
             top_2 = max(res[i][j] for j in range(n_classes) if j != majority)
-            p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p \in [p_a, 1]
-            if top_2 > 0:
-                p_b = beta.ppf(1 - alpha / n_classes, top_2, bags - top_2 + 1)  # p' \in [0, p_b]
+            if top_1 == bags:
+                p_a = np.power(alpha / n_classes, 1.0 / bags)
+                p_b = 1 - p_a
             else:
-                p_b = 1
+                p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p >= p_a
+                p_b = beta.ppf(1 - alpha / n_classes, top_2 + 1, bags - top_2)  # p' <= p_b
             # p + p' <= 1 if n_classes == 2, else p + p' == 1
             # p - p' >= ?
             # E.g., p_a = 0.7, p_b = 0.4, p - p' >= 0.7 - 0.3 = 0.4
@@ -94,11 +95,12 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
             majority = np.argmax(res[i][:-1])
             top_1 = res[i][majority]
             top_2 = max(res[i][j] for j in range(n_classes) if j != majority)
-            p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p \in [p_a, 1]
-            if top_2 > 0:
-                p_b = beta.ppf(1 - alpha / n_classes, top_2, bags - top_2 + 1)  # p' \in [0, p_b]
+            if top_1 == bags:
+                p_a = np.power(alpha / n_classes, 1.0 / bags)
+                p_b = 1 - p_a
             else:
-                p_b = 1
+                p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p >= p_a
+                p_b = beta.ppf(1 - alpha / n_classes, top_2 + 1, bags - top_2)  # p' <= p_b
             if n_classes == 2:
                 p_a = max(p_a, 1 - p_b)
             p_b = min(p_b, 1 - p_a)
