@@ -151,12 +151,13 @@ if __name__ == "__main__":
         args.__dict__.update(json.load(f))
         args.confidence = conf
     poisoned_ins_num_range = range(args.poisoned_ins_num_st, args.poisoned_ins_num_en + 1, args.poisoned_ins_num_step)
-    if os.path.exists(args.cache_filename + ".npy"):
+    cache_filename = os.path.join(args.load_dir, args.cache_filename)
+    if os.path.exists(cache_filename + ".npy"):
         respond = input("Experiment already exists, type [O] to overwrite, type [R] to resume")
         if respond == "O":
             cache = dict()
         elif respond == "R":
-            cache = np.load(args.cache_filename + ".npy", allow_pickle=True).item()
+            cache = np.load(cache_filename + ".npy", allow_pickle=True).item()
         else:
             exit(0)
     else:
@@ -195,7 +196,7 @@ if __name__ == "__main__":
             else:
                 ret = get_abstain_bagging_replace(res, args.confidence, args.k, poison_ins_num, args.D)
                 cache[poison_ins_num] = ret
-                np.save(args.cache_filename, cache)
+                np.save(cache_filename, cache)
 
             # output(ret)
     elif args.select_strategy == "bagging_replace" and args.noise_strategy in ["feature_flipping", "label_flipping",
@@ -209,7 +210,7 @@ if __name__ == "__main__":
                 ret = get_abstain_bagging_replace_feature_flip(res, args.confidence, poison_ins_num,
                                                                args.poisoned_feat_num, bound_cal)
                 cache[poison_ins_num] = ret
-                np.save(args.cache_filename, cache)
+                np.save(cache_filename, cache)
 
             # output(ret)
     else:
