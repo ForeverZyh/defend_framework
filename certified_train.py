@@ -7,15 +7,15 @@ import time
 import numpy as np
 import tensorflow as tf
 
-from data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor
-from models import MNIST17Model, MNISTModel
+from data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor
+from models import MNIST17Model, MNISTModel, IMDBTransformerModel
 from train_utils import train_many, train_single
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # general training parameters
-    parser.add_argument("-d", "--dataset", choices=["ember", "mnist", "mnist17"],
+    parser.add_argument("-d", "--dataset", choices=["ember", "mnist", "mnist17", "imdb"],
                         help="dataset type", required=True)
     parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument("--epochs", type=int, default=200, help="training epochs")
@@ -31,7 +31,8 @@ if __name__ == "__main__":
                         choices=["bagging_replace", "bagging_wo_replace", "binomial"],
                         help="selection strategy")
     parser.add_argument("--noise_strategy", default=None,
-                        choices=["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian", "RAB_uniform"],
+                        choices=["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian", "RAB_uniform"
+                            , "sentence_select"],
                         help="noise strategy")
     parser.add_argument('--K', action='store', default=2, type=int,
                         help='number of bins for discretization')
@@ -43,6 +44,10 @@ if __name__ == "__main__":
                         help='low for uniform noise')
     parser.add_argument('--b', action='store', default=1, type=float,
                         help='high for uniform noise')
+    parser.add_argument('--l', action='store', default=100, type=float,
+                        help='selected segment length from the input sentence')
+    parser.add_argument('--L', action='store', default=200, type=float,
+                        help='max length for the input sentence')
 
     # certification parameters
     parser.add_argument("--N", default=1000, type=int,
@@ -109,6 +114,12 @@ if __name__ == "__main__":
         else:
             data_loader = MNISTDataPreprocessor(args)
         model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes)
+    elif args.dataset == "imdb":
+        if args.load_poison_dir is not None:
+            data_loader = IMDBDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
+        else:
+            data_loader = IMDBDataPreprocessor(args)
+        model = IMDBTransformerModel.IMDBTransformerModel(data_loader.n_features, data_loader.n_classes)
     else:
         raise NotImplementedError
 

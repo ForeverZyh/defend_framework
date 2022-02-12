@@ -1,18 +1,20 @@
 from abc import ABC, abstractmethod
 import os
 import numpy as np
-from keras.models import load_model
+
+from tensorflow.keras.models import load_model
 
 
 class Model(ABC):
-    def __init__(self, n_features, n_classes, lr):
-        self.n_features = n_features
+    def __init__(self, input_shape, n_classes, lr):
+        self.input_shape = input_shape
+        self.n_classes = n_classes
         self.lr = lr
-        self.model = self.build_model(n_features, n_classes)
+        self.model = self.build_model()
         self.weights_initialize = self.model.get_weights()
 
     @abstractmethod
-    def build_model(self, n_features, n_classes):
+    def build_model(self):
         pass
 
     def init(self):

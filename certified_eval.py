@@ -7,7 +7,7 @@ import numpy as np
 from scipy.stats import beta
 from tqdm import tqdm
 
-from cal_bound import BoundCalculator
+from cal_bound import FlipBoundCalculator
 
 
 def output(x):
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     elif args.select_strategy == "bagging_replace" and args.noise_strategy in ["feature_flipping", "label_flipping",
                                                                                "all_flipping"]:
         Ia = Fraction(int(args.alpha * 100), 100)
-        bound_cal = BoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k)
+        bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k)
         for poison_ins_num in poisoned_ins_num_range:
             if poison_ins_num in cache:
                 ret = cache[poison_ins_num]

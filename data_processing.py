@@ -2,12 +2,13 @@ import os
 import pickle
 
 import numpy as np
-from keras.datasets import mnist
+from keras.datasets import mnist, imdb
 from sklearn.preprocessing import KBinsDiscretizer
+import keras
 
 
 class DataProcessor:
-    def __init__(self, X, y, select_strategy=None, k=None, noise_strategy=None, **kwargs):
+    def __init__(self, X, y, select_strategy=None, k=None, noise_strategy=None, dataset=None, **kwargs):
         """
         The initializer of data processor
         :param X: the training data (features)
@@ -21,10 +22,12 @@ class DataProcessor:
             feature_flipping / label_flipping: each feature / label remains with alpha, flipped with 1 - alpha
             RAB_gaussian: add gaussian noise of mu=0, sigma
             RAB_uniform: add uniform noise of U[a, b]
+        :param dataset: the name of the dataset
         :param kwargs: the parameters for each noise strategy
         """
         self.select_strategy = select_strategy
         self.noise_strategy = noise_strategy
+        self.dataset = dataset
         self.X = X
         self.y = y
         if select_strategy is not None:
@@ -34,19 +37,32 @@ class DataProcessor:
 
         if noise_strategy is not None:
             assert noise_strategy in ["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian",
-                                      "RAB_uniform"]
-            if noise_strategy in ["feature_flipping", "label_flipping", "all_flipping"]:
-                self.K = kwargs["K"]
-                self.alpha = kwargs["alpha"]
-                if noise_strategy in ["feature_flipping", "all_flipping"]:
-                    assert (self.X >= 0).all() and (self.X <= 1).all()
+                                      "RAB_uniform", "sentence_select"]
+            if dataset in ["mnist", "mnist17", "ember"]:
+                if noise_strategy in ["feature_flipping", "label_flipping", "all_flipping"]:
+                    self.K = kwargs["K"]
+                    self.alpha = kwargs["alpha"]
+                    if noise_strategy in ["feature_flipping", "all_flipping"]:
+                        assert (self.X >= 0).all() and (self.X <= 1).all()
+                    if noise_strategy in ["label_flipping", "all_flipping"]:
+                        assert (self.y >= 0).all() and (self.y <= self.K).all()
+                elif noise_strategy == "RAB_gaussian":
+                    self.sigma = kwargs["sigma"]
+                elif noise_strategy == "RAB_uniform":
+                    self.a = kwargs["a"]
+                    self.b = kwargs["b"]
+                else:
+                    raise NotImplementedError
+            elif dataset == "imdb":
+                assert noise_strategy in ["sentence_select", "label_flipping", "all_flipping"]
+                if noise_strategy in ["sentence_select", "all_flipping"]:
+                    self.l = kwargs["l"]
                 if noise_strategy in ["label_flipping", "all_flipping"]:
+                    self.K = kwargs["K"]
+                    self.alpha = kwargs["alpha"]
                     assert (self.y >= 0).all() and (self.y <= self.K).all()
-            elif noise_strategy == "RAB_gaussian":
-                self.sigma = kwargs["sigma"]
-            elif noise_strategy == "RAB_uniform":
-                self.a = kwargs["a"]
-                self.b = kwargs["b"]
+            else:
+                raise NotImplementedError
 
     def process_train(self):
         ret_X = self.X.copy()
@@ -62,21 +78,36 @@ class DataProcessor:
                 ret_X = ret_X[pred]
                 ret_y = ret_y[pred]
 
-        if self.noise_strategy is not None:
-            if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                mask = np.random.random(ret_X.shape) < self.alpha
-                delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
-                ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
-                ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+        if self.dataset in ["mnist", "mnist17", "ember"]:
+            if self.noise_strategy is not None:
+                if self.noise_strategy in ["feature_flipping", "all_flipping"]:
+                    mask = np.random.random(ret_X.shape) < self.alpha
+                    delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
+                    ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
+                    ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+                if self.noise_strategy in ["label_flipping", "all_flipping"]:
+                    mask = np.random.random(ret_y.shape) < self.alpha
+                    delta = np.random.randint(1, self.K + 1, ret_y.shape)
+                    ret_y = ret_y * mask + (1 - mask) * (ret_y + delta)
+                    ret_y[ret_y > self.K] -= self.K + 1
+                if self.noise_strategy == "RAB_gaussian":
+                    ret_X += np.random.normal(0, self.sigma, ret_X.shape)
+                if self.noise_strategy == "RAB_uniform":
+                    ret_X += np.random.uniform(self.a, self.b, ret_X.shape)
+        elif self.dataset == "imdb":
+            if self.noise_strategy in ["sentence_select", "all_flipping"]:
+                maxlen = ret_X.shape[1]
+                ret_X_new = []
+                for x in ret_X:
+                    p = np.random.randint(0, maxlen - self.l + 1)
+                    ret_X_new.append(np.pad(x[p:p + self.l], (0, maxlen - self.l), 'constant', constant_values=(0, 0)))
+
+                ret_X = np.array(ret_X_new)
             if self.noise_strategy in ["label_flipping", "all_flipping"]:
                 mask = np.random.random(ret_y.shape) < self.alpha
                 delta = np.random.randint(1, self.K + 1, ret_y.shape)
                 ret_y = ret_y * mask + (1 - mask) * (ret_y + delta)
                 ret_y[ret_y > self.K] -= self.K + 1
-            if self.noise_strategy == "RAB_gaussian":
-                ret_X += np.random.normal(0, self.sigma, ret_X.shape)
-            if self.noise_strategy == "RAB_uniform":
-                ret_X += np.random.uniform(self.a, self.b, ret_X.shape)
 
         return ret_X, ret_y
 
@@ -98,7 +129,7 @@ class DataPreprocessor:
     def build_processor(x_train, y_train, args):
         return DataProcessor(x_train, y_train, select_strategy=args.select_strategy, k=args.k,
                              noise_strategy=args.noise_strategy, K=args.K, alpha=args.alpha,
-                             sigma=args.sigma, a=args.a, b=args.b)
+                             sigma=args.sigma, a=args.a, b=args.b, dataset=args.dataset, l=args.l)
 
 
 class MNIST17DataPreprocessor(DataPreprocessor):
@@ -169,3 +200,21 @@ class MNISTDataPreprocessor(DataPreprocessor):
         print('x_train shape:', x_train.shape, self.y_train.shape)
         print(x_train.shape[0], 'train samples')
         print(x_test.shape[0], 'test samples')
+
+
+class IMDBDataPreprocessor(DataPreprocessor):
+    def __init__(self, args):
+        super(IMDBDataPreprocessor, self).__init__()
+        vocab_size = 10000  # Only consider the top 20k words
+        self.n_features = args.L  # Only consider the first 200 words of each movie review
+        self.n_classes = 2
+        (x_train, self.y_train), (x_test, self.y_test) = imdb.load_data(num_words=vocab_size)
+        print(len(x_train), "Training sequences")
+        print(len(x_test), "Validation sequences")
+        self.x_train = keras.preprocessing.sequence.pad_sequences(x_train, maxlen=self.n_features)
+        self.x_test = keras.preprocessing.sequence.pad_sequences(x_test, maxlen=self.n_features)
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', self.x_train.shape, self.y_train.shape)
+        print(self.x_train.shape[0], 'train samples')
+        print(self.x_test.shape[0], 'test samples')
