@@ -1,8 +1,8 @@
 from tensorflow import keras
-from keras.models import Sequential
-from keras.layers import Dense, Flatten, Dropout
-from keras.layers import Conv2D, AveragePooling2D
-from keras.regularizers import l2
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Flatten, Dropout
+from tensorflow.keras.layers import Conv2D, AveragePooling2D
+from tensorflow.keras.regularizers import l2
 
 from models.Model import Model
 

@@ -2,9 +2,9 @@ import os
 import pickle
 
 import numpy as np
-from keras.datasets import mnist, imdb
+from tensorflow.keras.datasets import mnist, imdb
 from sklearn.preprocessing import KBinsDiscretizer
-import keras
+from tensorflow import keras
 
 
 class DataProcessor:
