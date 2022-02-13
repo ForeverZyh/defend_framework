@@ -44,9 +44,9 @@ if __name__ == "__main__":
                         help='low for uniform noise')
     parser.add_argument('--b', action='store', default=1, type=float,
                         help='high for uniform noise')
-    parser.add_argument('--l', action='store', default=100, type=float,
+    parser.add_argument('--l', action='store', default=100, type=int,
                         help='selected segment length from the input sentence')
-    parser.add_argument('--L', action='store', default=200, type=float,
+    parser.add_argument('--L', action='store', default=200, type=int,
                         help='max length for the input sentence')
 
     # certification parameters
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     else:
         raise NotImplementedError
 
-    aggregate_result = train_many(data_loader, model, args)
-    np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), aggregate_result)
+    aggregate_results = train_many(data_loader, model, args)
+    np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), aggregate_results)
     with open(os.path.join(args.res_save_dir, args.exp_name, "commandline_args.txt"), 'w') as f:
         json.dump(args.__dict__, f, indent=2)

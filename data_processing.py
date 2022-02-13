@@ -78,8 +78,8 @@ class DataProcessor:
                 ret_X = ret_X[pred]
                 ret_y = ret_y[pred]
 
-        if self.dataset in ["mnist", "mnist17", "ember"]:
-            if self.noise_strategy is not None:
+        if self.noise_strategy is not None:
+            if self.dataset in ["mnist", "mnist17", "ember"]:
                 if self.noise_strategy in ["feature_flipping", "all_flipping"]:
                     mask = np.random.random(ret_X.shape) < self.alpha
                     delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
@@ -94,22 +94,46 @@ class DataProcessor:
                     ret_X += np.random.normal(0, self.sigma, ret_X.shape)
                 if self.noise_strategy == "RAB_uniform":
                     ret_X += np.random.uniform(self.a, self.b, ret_X.shape)
-        elif self.dataset == "imdb":
-            if self.noise_strategy in ["sentence_select", "all_flipping"]:
-                maxlen = ret_X.shape[1]
-                ret_X_new = []
-                for x in ret_X:
-                    p = np.random.randint(0, maxlen - self.l + 1)
-                    ret_X_new.append(np.pad(x[p:p + self.l], (0, maxlen - self.l), 'constant', constant_values=(0, 0)))
+            elif self.dataset == "imdb":
+                if self.noise_strategy in ["sentence_select", "all_flipping"]:
+                    maxlen = ret_X.shape[1]
+                    ret_X_new = []
+                    for x in ret_X:
+                        p = np.random.randint(0, maxlen - self.l + 1)
+                        ret_X_new.append(
+                            np.pad(x[p:p + self.l], (0, maxlen - self.l), 'constant', constant_values=(0, 0)))
 
-                ret_X = np.array(ret_X_new)
-            if self.noise_strategy in ["label_flipping", "all_flipping"]:
-                mask = np.random.random(ret_y.shape) < self.alpha
-                delta = np.random.randint(1, self.K + 1, ret_y.shape)
-                ret_y = ret_y * mask + (1 - mask) * (ret_y + delta)
-                ret_y[ret_y > self.K] -= self.K + 1
+                    ret_X = np.array(ret_X_new)
+                if self.noise_strategy in ["label_flipping", "all_flipping"]:
+                    mask = np.random.random(ret_y.shape) < self.alpha
+                    delta = np.random.randint(1, self.K + 1, ret_y.shape)
+                    ret_y = ret_y * mask + (1 - mask) * (ret_y + delta)
+                    ret_y[ret_y > self.K] -= self.K + 1
 
         return ret_X, ret_y
+
+    def process_test(self, X):
+        ret_X = X.copy()
+        if self.noise_strategy is not None:
+            if self.dataset in ["mnist", "mnist17", "ember"]:
+                if self.noise_strategy in ["feature_flipping", "all_flipping"]:
+                    mask = np.random.random(ret_X.shape[1:]) < self.alpha  # fix the noise for each example
+                    delta = np.random.randint(1, self.K + 1, ret_X.shape[1:]) / self.K
+                    ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
+                    ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+                if self.noise_strategy == "RAB_gaussian":
+                    ret_X += np.random.normal(0, self.sigma, ret_X.shape[1:])  # fix the noise for each example
+                if self.noise_strategy == "RAB_uniform":
+                    ret_X += np.random.uniform(self.a, self.b, ret_X.shape[1:])  # fix the noise for each example
+            elif self.dataset == "imdb":
+                if self.noise_strategy in ["sentence_select", "all_flipping"]:
+                    maxlen = ret_X.shape[1]
+                    ret_X_new = np.zeros_like(ret_X)
+                    p = np.random.randint(0, maxlen - self.l + 1)  # fix the noise for each example
+                    ret_X_new[:, :self.l] = ret_X[:, p:p + self.l]
+                    ret_X = ret_X_new
+
+        return ret_X
 
 
 class DataPreprocessor:
