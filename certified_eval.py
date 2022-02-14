@@ -7,7 +7,7 @@ import numpy as np
 from scipy.stats import beta
 from tqdm import tqdm
 
-from cal_bound import FlipBoundCalculator
+from cal_bound import FlipBoundCalculator, SelectBoundCalculator, BoundCalculator
 
 
 def output(x):
@@ -83,7 +83,8 @@ def get_abstain_bagging_replace(res, conf, ex_in_bag, poison_ins_num, D, poison_
     return ret
 
 
-def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poisoned_feat_num, bound_cal):
+def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poisoned_feat_num,
+                                             bound_cal: BoundCalculator):
     # res.shape: (n_examples, n_classes + 1)
     ret = np.ones(res.shape[0])
     alpha = (1 - conf) / res.shape[0]
@@ -162,7 +163,7 @@ if __name__ == "__main__":
             exit(0)
     else:
         cache = dict()
-    res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
+    res, res_noise = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
     if args.dataset == "mnist17":
         args.D = 13007
         if args.noise_strategy is not None:
@@ -186,6 +187,9 @@ if __name__ == "__main__":
                 args.d = 1
             else:
                 raise NotImplementedError
+    elif args.dataset == "imdb":
+        args.D = 25000
+        args.d = None
     else:
         raise NotImplementedError
 
@@ -201,8 +205,17 @@ if __name__ == "__main__":
             # output(ret)
     elif args.select_strategy == "bagging_replace" and args.noise_strategy in ["feature_flipping", "label_flipping",
                                                                                "all_flipping"]:
-        Ia = Fraction(int(args.alpha * 100), 100)
-        bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k)
+        if args.dataset in ["mnist", "mnist17", "ember"]:
+            Ia = Fraction(int(args.alpha * 100), 100)
+            bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k)
+        elif args.dataset == "imdb":
+            if args.noise_strategy == "sentence_select":
+                bound_cal = SelectBoundCalculator(None, args.dataset, args.D, args.L, args.k, args.l)
+            else:
+                Ia = Fraction(int(args.alpha * 100), 100)
+                bound_cal = SelectBoundCalculator((Ia, (1 - Ia) / args.K, args.K), args.dataset, args.D, args.L, args.k,
+                                                  args.l)
+
         for poison_ins_num in poisoned_ins_num_range:
             if poison_ins_num in cache:
                 ret = cache[poison_ins_num]
