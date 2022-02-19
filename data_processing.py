@@ -99,9 +99,9 @@ class DataProcessor:
                     maxlen = ret_X.shape[1]
                     ret_X_new = []
                     for x in ret_X:
-                        p = np.random.randint(0, maxlen - self.l + 1)
+                        indices = sorted(np.random.choice(np.arange(maxlen), self.l, replace=False))
                         ret_X_new.append(
-                            np.pad(x[p:p + self.l], (0, maxlen - self.l), 'constant', constant_values=(0, 0)))
+                            np.pad(x[indices], (0, maxlen - self.l), 'constant', constant_values=(0, 0)))
 
                     ret_X = np.array(ret_X_new)
                 if self.noise_strategy in ["label_flipping", "all_flipping"]:
@@ -129,8 +129,8 @@ class DataProcessor:
                 if self.noise_strategy in ["sentence_select", "all_flipping"]:
                     maxlen = ret_X.shape[1]
                     ret_X_new = np.zeros_like(ret_X)
-                    p = np.random.randint(0, maxlen - self.l + 1)  # fix the noise for each example
-                    ret_X_new[:, :self.l] = ret_X[:, p:p + self.l]
+                    indices = sorted(np.random.choice(np.arange(maxlen), self.l, replace=False)) # fix the noise for each example
+                    ret_X_new[:, :self.l] = ret_X[:, indices]
                     ret_X = ret_X_new
 
         return ret_X

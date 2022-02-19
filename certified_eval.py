@@ -204,7 +204,7 @@ if __name__ == "__main__":
 
             # output(ret)
     elif args.select_strategy == "bagging_replace" and args.noise_strategy in ["feature_flipping", "label_flipping",
-                                                                               "all_flipping"]:
+                                                                               "all_flipping", "sentence_select"]:
         if args.dataset in ["mnist", "mnist17", "ember"]:
             Ia = Fraction(int(args.alpha * 100), 100)
             bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k)

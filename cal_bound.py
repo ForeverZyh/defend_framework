@@ -119,9 +119,12 @@ class SelectBoundCalculator(BoundCalculator):
         """
         Ia, Ib, fn, D, L, K, k, l = self.Ia, self.Ib, self.fn, self.D, self.L, self.K, self.k, self.l
         achieved = 0
+        fact = [1]
+        for i in range(1, L + s + 1):
+            fact.append(fact[-1] * i)
         coefs = [Fraction(1)]
         for i in range(1, k + 1):
-            coefs.append(coefs[-1] * Fraction(L - l + 1, L + s - l + 1))
+            coefs.append(coefs[-1] * Fraction(fact[L] * fact[L + s - l], fact[L - l] * fact[L + s]))
 
         outcome = [(1, 1, 1, 0)]
         for i in range(1, k + 1):
@@ -145,7 +148,7 @@ class SelectBoundCalculator(BoundCalculator):
                     outcome.append((p, complete_cnt_qs[i][j], p / complete_cnt_qs[i][j], i))
 
         outcome.sort(key=lambda x: x[2] if reverse else -x[2])
-        for i in trange(len(outcome)):
+        for i in range(len(outcome)):
             p_cnt, q_cnt, eta, poison_cnt = outcome[i]
 
             p_delta = p_cnt * p_binom[poison_cnt]
