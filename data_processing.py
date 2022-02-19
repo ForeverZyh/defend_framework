@@ -64,7 +64,7 @@ class DataProcessor:
             else:
                 raise NotImplementedError
 
-    def process_train(self):
+    def process_train(self, key_dict):
         ret_X = self.X.copy()
         ret_y = self.y.copy()  # make sure the original data is not modified
         if self.select_strategy is not None:
@@ -109,6 +109,12 @@ class DataProcessor:
                     delta = np.random.randint(1, self.K + 1, ret_y.shape)
                     ret_y = ret_y * mask + (1 - mask) * (ret_y + delta)
                     ret_y[ret_y > self.K] -= self.K + 1
+        if (self.noise_strategy is not None or self.select_strategy is not None) and self.dataset == "imdb":
+            for x in ret_X:
+                for i in range(len(x)):
+                    if x[i] not in key_dict:
+                        key_dict[x[i]] = len(key_dict)
+                    x[i] = key_dict[x[i]]
 
         return ret_X, ret_y
 
