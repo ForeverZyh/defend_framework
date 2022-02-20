@@ -26,6 +26,11 @@ if __name__ == "__main__":
         if os.path.exists(os.path.join(folder, f"plot_{args.poisoned_feat_num}.npy")):
             res = dict(np.load(os.path.join(folder, f"plot_{args.poisoned_feat_num}.npy"), allow_pickle=True).item())
             x = sorted(list(res.keys()))
+            auc = 0
+            for i in range(len(x)):
+                if i != len(x) - 1:
+                    auc += (x[i + 1] - x[i]) * np.mean(res[x[i]]) / 2
+            print(f"AUC of {folder}: ", auc)
             x_max = max(x_max, max(x))
         else:
             warnings.warn(f"{os.path.join(folder, f'plot_{args.poisoned_feat_num}.npy')} does not detected!")
