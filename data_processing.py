@@ -3,8 +3,9 @@ import pickle
 
 import numpy as np
 from tensorflow.keras.datasets import mnist, imdb
-from sklearn.preprocessing import KBinsDiscretizer
 from tensorflow import keras
+import ember
+from sklearn.preprocessing import StandardScaler
 
 
 class DataProcessor:
@@ -135,7 +136,8 @@ class DataProcessor:
                 if self.noise_strategy in ["sentence_select", "all_flipping"]:
                     maxlen = ret_X.shape[1]
                     ret_X_new = np.zeros_like(ret_X)
-                    indices = sorted(np.random.choice(np.arange(maxlen), self.l, replace=False)) # fix the noise for each example
+                    indices = sorted(
+                        np.random.choice(np.arange(maxlen), self.l, replace=False))  # fix the noise for each example
                     ret_X_new[:, :self.l] = ret_X[:, indices]
                     ret_X = ret_X_new
 
@@ -239,10 +241,48 @@ class IMDBDataPreprocessor(DataPreprocessor):
         self.n_features = args.L  # Only consider the first 200 words of each movie review
         self.n_classes = 2
         (x_train, self.y_train), (x_test, self.y_test) = imdb.load_data(num_words=vocab_size)
-        print(len(x_train), "Training sequences")
-        print(len(x_test), "Validation sequences")
         self.x_train = keras.preprocessing.sequence.pad_sequences(x_train, maxlen=self.n_features)
         self.x_test = keras.preprocessing.sequence.pad_sequences(x_test, maxlen=self.n_features)
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', self.x_train.shape, self.y_train.shape)
+        print(self.x_train.shape[0], 'train samples')
+        print(self.x_test.shape[0], 'test samples')
+
+
+class EmberDataPreProcessor(DataPreprocessor):
+    def __init__(self, args):
+        super(EmberDataPreProcessor, self).__init__()
+        try:
+            x_train = np.load(os.path.join(args.ember_data_dir, "x_train.npy"))
+            x_test = np.load(os.path.join(args.ember_data_dir, "x_test.npy"))
+            y_train = np.load(os.path.join(args.ember_data_dir, "y_train.npy"))
+            y_test = np.load(os.path.join(args.ember_data_dir, "y_test.npy"))
+
+        except:
+            ember.create_vectorized_features(
+                args.ember_data_dir,
+                feature_version=1
+            )
+            x_train, y_train, x_test, y_test = ember.read_vectorized_features(
+                args.ember_data_dir,
+                feature_version=1
+            )
+
+        x_train = x_train.astype(dtype='float64')
+        x_test = x_test.astype(dtype='float64')
+
+        # Get rid of unknown labels
+        self.x_train = x_train[y_train != -1]
+        self.y_train = y_train[y_train != -1]
+        self.x_test = x_test[y_test != -1]
+        self.y_test = y_test[y_test != -1]
+        normal = StandardScaler()
+        self.x_train = normal.fit_transform(self.x_train)
+        self.x_test = normal.transform(self.x_test)
+
+        self.n_features = x_train.shape[1]
+        self.n_classes = 2
 
         self.data_processor = self.build_processor(self.x_train, self.y_train, args)
         print('x_train shape:', self.x_train.shape, self.y_train.shape)

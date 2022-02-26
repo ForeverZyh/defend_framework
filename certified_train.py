@@ -7,8 +7,8 @@ import time
 import numpy as np
 import tensorflow as tf
 
-from data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor
-from models import MNIST17Model, MNISTModel, IMDBTransformerModel
+from data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor, EmberDataPreProcessor
+from models import MNIST17Model, MNISTModel, IMDBTransformerModel, EmberModel
 from train_utils import train_many, train_single
 
 if __name__ == "__main__":
@@ -61,6 +61,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_save_dir", default=None, type=str, help="dir for saving the model for attacking")
     parser.add_argument("--res_save_dir", default=None, type=str, help="dir for saving the aggregate results")
     parser.add_argument("--exp_name", default=None, type=str, help="name for this experiment")
+    parser.add_argument("--ember_data_dir", default="/tmp", type=str, help="dir to store cached ember dataset")
 
     # Set random seeds
     args = parser.parse_args()
@@ -120,6 +121,13 @@ if __name__ == "__main__":
         else:
             data_loader = IMDBDataPreprocessor(args)
         model = IMDBTransformerModel.IMDBTransformerModel(data_loader.n_features, data_loader.n_classes)
+    elif args.dataset == "ember":
+        if args.load_poison_dir is not None:
+            raise NotImplementedError  # todo: load data from file
+            # data_loader = EmberDataPreProcessor.load(os.path.join(args.load_poison_dir, "data"), args)
+        else:
+            data_loader = EmberDataPreProcessor(args)
+        model = EmberModel.EmberModel(data_loader.n_features, data_loader.n_classes)
     else:
         raise NotImplementedError
 
