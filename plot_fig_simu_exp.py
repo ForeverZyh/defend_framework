@@ -27,10 +27,15 @@ if __name__ == "__main__":
             res = dict(np.load(os.path.join(folder, f"plot_{args.poisoned_feat_num}.npy"), allow_pickle=True).item())
             x = sorted(list(res.keys()))
             auc = 0
+            mcr = 0
             for i in range(len(x)):
                 if i != len(x) - 1:
-                    auc += (x[i + 1] - x[i]) * np.mean(res[x[i]]) / 2
-            print(f"AUC of {folder}: ", auc)
+                    y1 = np.mean(res[x[i]] > 0)
+                    y2 = np.mean(res[x[i + 1]] > 0)
+                    auc += (x[i + 1] - x[i]) * (y1 + y2) / 2
+                    if y1 >= 0.5 and y2 <= 0.5:
+                        mcr = (x[i] * (0.5 - y2) + x[i + 1] * (y1 - 0.5)) / (y1 - y2)
+            print(f"{folder}\tNormal Acc: {np.mean(res[0] > 0) * 100:.2f}\tAUC: {auc:.2f}\tMCR: {mcr:.2f}")
             x_max = max(x_max, max(x))
         else:
             warnings.warn(f"{os.path.join(folder, f'plot_{args.poisoned_feat_num}.npy')} does not detected!")
