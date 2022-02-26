@@ -190,6 +190,17 @@ if __name__ == "__main__":
     elif args.dataset == "imdb":
         args.D = 25000
         args.d = None
+    elif args.dataset == "ember":
+        args.D = 600000
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 2351
+            elif args.noise_strategy == "all_flipping":
+                args.d = 2351 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
     else:
         raise NotImplementedError
 

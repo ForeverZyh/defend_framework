@@ -5,7 +5,7 @@ import numpy as np
 from tensorflow.keras.datasets import mnist, imdb
 from tensorflow import keras
 import ember
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 
 
 class DataProcessor:
@@ -43,7 +43,7 @@ class DataProcessor:
                 if noise_strategy in ["feature_flipping", "label_flipping", "all_flipping"]:
                     self.K = kwargs["K"]
                     self.alpha = kwargs["alpha"]
-                    if noise_strategy in ["feature_flipping", "all_flipping"]:
+                    if noise_strategy in ["feature_flipping", "all_flipping"] and dataset != "ember":
                         assert (self.X >= 0).all() and (self.X <= 1).all()
                     if noise_strategy in ["label_flipping", "all_flipping"]:
                         assert (self.y >= 0).all() and (self.y <= self.K).all()
@@ -82,6 +82,10 @@ class DataProcessor:
         if self.noise_strategy is not None:
             if self.dataset in ["mnist", "mnist17", "ember"]:
                 if self.noise_strategy in ["feature_flipping", "all_flipping"]:
+                    if self.dataset == "ember":
+                        self.kbin = KBinsDiscretizer(n_bins=self.K, strategy='uniform')
+                        ret_X = self.kbin.fit_transform(ret_X) / (self.K - 1)
+
                     mask = np.random.random(ret_X.shape) < self.alpha
                     delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
                     ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
@@ -124,6 +128,9 @@ class DataProcessor:
         if self.noise_strategy is not None:
             if self.dataset in ["mnist", "mnist17", "ember"]:
                 if self.noise_strategy in ["feature_flipping", "all_flipping"]:
+                    if self.dataset == "ember":
+                        ret_X = self.kbin.transform(ret_X) / (self.K - 1)
+
                     mask = np.random.random(ret_X.shape[1:]) < self.alpha  # fix the noise for each example
                     delta = np.random.randint(1, self.K + 1, ret_X.shape[1:]) / self.K
                     ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
@@ -254,10 +261,10 @@ class EmberDataPreProcessor(DataPreprocessor):
     def __init__(self, args):
         super(EmberDataPreProcessor, self).__init__()
         try:
-            x_train = np.load(os.path.join(args.ember_data_dir, "x_train.npy"))
-            x_test = np.load(os.path.join(args.ember_data_dir, "x_test.npy"))
-            y_train = np.load(os.path.join(args.ember_data_dir, "y_train.npy"))
-            y_test = np.load(os.path.join(args.ember_data_dir, "y_test.npy"))
+            x_train, y_train, x_test, y_test = ember.read_vectorized_features(
+                args.ember_data_dir,
+                feature_version=1
+            )
 
         except:
             ember.create_vectorized_features(

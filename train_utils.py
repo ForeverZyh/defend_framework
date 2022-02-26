@@ -11,7 +11,7 @@ def train_many(data_loader, model, args):
     # using the last index for the ground truth label
     datagen = DataGeneratorForMNIST() if args.data_aug and args.dataset in ["mnist", "mnist17"] else None
     for i in range(args.N):
-        key_dict = {0 : 0, 1 : 1, 2 : 2} # used for imdb dataset to get word idx
+        key_dict = {0: 0, 1: 1, 2: 2}  # used for imdb dataset to get word idx
         X, y = data_loader.data_processor.process_train(key_dict)
         y = keras.utils.to_categorical(y, data_loader.n_classes)
         if datagen is not None:

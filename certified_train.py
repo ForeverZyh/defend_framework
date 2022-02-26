@@ -108,26 +108,26 @@ if __name__ == "__main__":
             data_loader = MNIST17DataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = MNIST17DataPreprocessor(args)
-        model = MNIST17Model.MNIST17Model(data_loader.n_features, data_loader.n_classes)
+        model = MNIST17Model.MNIST17Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     elif args.dataset == "mnist":
         if args.load_poison_dir is not None:
             data_loader = MNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = MNISTDataPreprocessor(args)
-        model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes)
+        model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     elif args.dataset == "imdb":
         if args.load_poison_dir is not None:
             data_loader = IMDBDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = IMDBDataPreprocessor(args)
-        model = IMDBTransformerModel.IMDBTransformerModel(data_loader.n_features, data_loader.n_classes)
+        model = IMDBTransformerModel.IMDBTransformerModel(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     elif args.dataset == "ember":
         if args.load_poison_dir is not None:
             raise NotImplementedError  # todo: load data from file
             # data_loader = EmberDataPreProcessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = EmberDataPreProcessor(args)
-        model = EmberModel.EmberModel(data_loader.n_features, data_loader.n_classes)
+        model = EmberModel.EmberModel(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     else:
         raise NotImplementedError
 
