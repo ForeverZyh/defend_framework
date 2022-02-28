@@ -43,8 +43,12 @@ class DataProcessor:
                 if noise_strategy in ["feature_flipping", "label_flipping", "all_flipping"]:
                     self.K = kwargs["K"]
                     self.alpha = kwargs["alpha"]
-                    if noise_strategy in ["feature_flipping", "all_flipping"] and dataset != "ember":
-                        assert (self.X >= 0).all() and (self.X <= 1).all()
+                    if noise_strategy in ["feature_flipping", "all_flipping"]:
+                        if dataset == "ember":
+                            self.kbin = KBinsDiscretizer(n_bins=self.K + 1, strategy='uniform', encode='ordinal')
+                            self.kbin.fit(self.X)
+                        else:
+                            assert (self.X >= 0).all() and (self.X <= 1).all()
                     if noise_strategy in ["label_flipping", "all_flipping"]:
                         assert (self.y >= 0).all() and (self.y <= self.K).all()
                 elif noise_strategy == "RAB_gaussian":
@@ -83,8 +87,7 @@ class DataProcessor:
             if self.dataset in ["mnist", "mnist17", "ember"]:
                 if self.noise_strategy in ["feature_flipping", "all_flipping"]:
                     if self.dataset == "ember":
-                        self.kbin = KBinsDiscretizer(n_bins=self.K, strategy='uniform')
-                        ret_X = self.kbin.fit_transform(ret_X) / (self.K - 1)
+                        ret_X = self.kbin.transform(ret_X) / self.K
 
                     mask = np.random.random(ret_X.shape) < self.alpha
                     delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
@@ -123,30 +126,51 @@ class DataProcessor:
 
         return ret_X, ret_y
 
-    def process_test(self, X):
+    def process_test(self, X, fix_noise):
         ret_X = X.copy()
-        if self.noise_strategy is not None:
-            if self.dataset in ["mnist", "mnist17", "ember"]:
-                if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                    if self.dataset == "ember":
-                        ret_X = self.kbin.transform(ret_X) / (self.K - 1)
-
-                    mask = np.random.random(ret_X.shape[1:]) < self.alpha  # fix the noise for each example
-                    delta = np.random.randint(1, self.K + 1, ret_X.shape[1:]) / self.K
-                    ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
-                    ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
-                if self.noise_strategy == "RAB_gaussian":
-                    ret_X += np.random.normal(0, self.sigma, ret_X.shape[1:])  # fix the noise for each example
-                if self.noise_strategy == "RAB_uniform":
-                    ret_X += np.random.uniform(self.a, self.b, ret_X.shape[1:])  # fix the noise for each example
-            elif self.dataset == "imdb":
-                if self.noise_strategy in ["sentence_select", "all_flipping"]:
-                    maxlen = ret_X.shape[1]
-                    ret_X_new = np.zeros_like(ret_X)
-                    indices = sorted(
-                        np.random.choice(np.arange(maxlen), self.l, replace=False))  # fix the noise for each example
-                    ret_X_new[:, :self.l] = ret_X[:, indices]
-                    ret_X = ret_X_new
+        if fix_noise:
+            if self.noise_strategy is not None:
+                if self.dataset in ["mnist", "mnist17", "ember"]:
+                    if self.noise_strategy in ["feature_flipping", "all_flipping"]:
+                        mask = np.random.random(ret_X.shape[1:]) < self.alpha  # fix the noise for each example
+                        delta = np.random.randint(1, self.K + 1, ret_X.shape[1:]) / self.K
+                        ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
+                        ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+                    if self.noise_strategy == "RAB_gaussian":
+                        ret_X += np.random.normal(0, self.sigma, ret_X.shape[1:])  # fix the noise for each example
+                    if self.noise_strategy == "RAB_uniform":
+                        ret_X += np.random.uniform(self.a, self.b, ret_X.shape[1:])  # fix the noise for each example
+                elif self.dataset == "imdb":
+                    if self.noise_strategy in ["sentence_select", "all_flipping"]:
+                        maxlen = ret_X.shape[1]
+                        ret_X_new = np.zeros_like(ret_X)
+                        indices = sorted(
+                            np.random.choice(np.arange(maxlen), self.l,
+                                             replace=False))  # fix the noise for each example
+                        ret_X_new[:, :self.l] = ret_X[:, indices]
+                        ret_X = ret_X_new
+        else:
+            if self.noise_strategy is not None:
+                if self.dataset in ["mnist", "mnist17", "ember"]:
+                    if self.noise_strategy in ["feature_flipping", "all_flipping"]:
+                        mask = np.random.random(ret_X.shape) < self.alpha  # fix the noise for each example
+                        delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
+                        ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
+                        ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+                    if self.noise_strategy == "RAB_gaussian":
+                        ret_X += np.random.normal(0, self.sigma, ret_X.shape)  # fix the noise for each example
+                    if self.noise_strategy == "RAB_uniform":
+                        ret_X += np.random.uniform(self.a, self.b, ret_X.shape)  # fix the noise for each example
+                elif self.dataset == "imdb":
+                    if self.noise_strategy in ["sentence_select", "all_flipping"]:
+                        maxlen = ret_X.shape[1]
+                        ret_X_new = []
+                        for x in ret_X:
+                            indices = sorted(np.random.choice(np.arange(maxlen), self.l, replace=False))
+                            ret_X_new.append(
+                                np.pad(x[indices], (0, maxlen - self.l), 'constant', constant_values=(0, 0)))
+                            
+                        ret_X = np.array(ret_X_new)
 
         return ret_X
 
