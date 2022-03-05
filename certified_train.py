@@ -7,15 +7,15 @@ import time
 import numpy as np
 import tensorflow as tf
 
-from data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor, EmberDataPreProcessor
+from utils.data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor, EmberDataPreProcessor
 from models import MNIST17Model, MNISTModel, IMDBTransformerModel, EmberModel
-from train_utils import train_many, train_single
+from utils.train_utils import train_many
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # general training parameters
-    parser.add_argument("-d", "--dataset", choices=["ember", "mnist", "mnist17", "imdb"],
+    parser.add_argument("-d", "--dataset", choices=["ember", "mnist", "mnist17", "imdb", "ember_limited"],
                         help="dataset type", required=True)
     parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument("--epochs", type=int, default=200, help="training epochs")

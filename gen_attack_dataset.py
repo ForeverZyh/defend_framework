@@ -8,10 +8,10 @@ import numpy as np
 import tensorflow as tf
 import keras
 
-from data_processing import MNISTDataPreprocessor, MNIST17DataPreprocessor
+from utils.data_processing import MNISTDataPreprocessor, MNIST17DataPreprocessor
 from models.MNISTModel import MNISTModel
 from models.MNIST17Model import MNIST17Model
-from train_utils import train_many, train_single
+from utils.train_utils import train_single
 from attack.BadNetAttack import BadNetAttack
 
 if __name__ == "__main__":

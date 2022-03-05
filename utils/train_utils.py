@@ -1,7 +1,7 @@
 import numpy as np
 from tensorflow import keras
 
-from dataaug import DataGeneratorForMNIST
+from utils.dataaug import DataGeneratorForMNIST
 
 
 def train_many(data_loader, model, args):

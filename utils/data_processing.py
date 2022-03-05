@@ -7,6 +7,12 @@ from tensorflow import keras
 import ember
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 
+from utils.ember_feature_utils import load_features
+
+EMBER_DATASET = ["ember", "ember_limited"]
+FEATURE_DATASET = ["mnist", "mnist17"] + EMBER_DATASET
+LANGUAGE_DATASET = ["imdb"]
+
 
 class DataProcessor:
     def __init__(self, X, y, select_strategy=None, k=None, noise_strategy=None, dataset=None, **kwargs):
@@ -39,14 +45,16 @@ class DataProcessor:
         if noise_strategy is not None:
             assert noise_strategy in ["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian",
                                       "RAB_uniform", "sentence_select"]
-            if dataset in ["mnist", "mnist17", "ember"]:
+            if dataset in FEATURE_DATASET:
                 if noise_strategy in ["feature_flipping", "label_flipping", "all_flipping"]:
                     self.K = kwargs["K"]
                     self.alpha = kwargs["alpha"]
                     if noise_strategy in ["feature_flipping", "all_flipping"]:
-                        if dataset == "ember":
+                        if dataset in EMBER_DATASET:
                             self.kbin = KBinsDiscretizer(n_bins=self.K + 1, strategy='uniform', encode='ordinal')
                             self.kbin.fit(self.X)
+                            if dataset == "ember_limited":
+                                self.limit_id, _, _, _ = load_features(False)
                         else:
                             assert (self.X >= 0).all() and (self.X <= 1).all()
                     if noise_strategy in ["label_flipping", "all_flipping"]:
@@ -58,7 +66,7 @@ class DataProcessor:
                     self.b = kwargs["b"]
                 else:
                     raise NotImplementedError
-            elif dataset == "imdb":
+            elif dataset in LANGUAGE_DATASET:
                 assert noise_strategy in ["sentence_select", "label_flipping", "all_flipping"]
                 if noise_strategy in ["sentence_select", "all_flipping"]:
                     self.l = kwargs["l"]
@@ -84,12 +92,14 @@ class DataProcessor:
                 ret_y = ret_y[pred]
 
         if self.noise_strategy is not None:
-            if self.dataset in ["mnist", "mnist17", "ember"]:
+            if self.dataset in FEATURE_DATASET:
                 if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                    if self.dataset == "ember":
+                    if self.dataset in EMBER_DATASET:
                         ret_X = self.kbin.transform(ret_X) / self.K
 
                     mask = np.random.random(ret_X.shape) < self.alpha
+                    if self.dataset == "ember_limited":  # protect other features
+                        mask[:, self.limit_id] = 1
                     delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
                     ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
                     ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
@@ -102,7 +112,7 @@ class DataProcessor:
                     ret_X += np.random.normal(0, self.sigma, ret_X.shape)
                 if self.noise_strategy == "RAB_uniform":
                     ret_X += np.random.uniform(self.a, self.b, ret_X.shape)
-            elif self.dataset == "imdb":
+            elif self.dataset in LANGUAGE_DATASET:
                 if self.noise_strategy in ["sentence_select", "all_flipping"]:
                     maxlen = ret_X.shape[1]
                     ret_X_new = []
@@ -130,9 +140,14 @@ class DataProcessor:
         ret_X = X.copy()
         if fix_noise:
             if self.noise_strategy is not None:
-                if self.dataset in ["mnist", "mnist17", "ember"]:
+                if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
+                        if self.dataset in EMBER_DATASET:
+                            ret_X = self.kbin.transform(ret_X) / self.K
+
                         mask = np.random.random(ret_X.shape[1:]) < self.alpha  # fix the noise for each example
+                        if self.dataset == "ember_limited":  # protect other features
+                            mask[self.limit_id] = 1
                         delta = np.random.randint(1, self.K + 1, ret_X.shape[1:]) / self.K
                         ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
                         ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
@@ -140,7 +155,7 @@ class DataProcessor:
                         ret_X += np.random.normal(0, self.sigma, ret_X.shape[1:])  # fix the noise for each example
                     if self.noise_strategy == "RAB_uniform":
                         ret_X += np.random.uniform(self.a, self.b, ret_X.shape[1:])  # fix the noise for each example
-                elif self.dataset == "imdb":
+                elif self.dataset in LANGUAGE_DATASET:
                     if self.noise_strategy in ["sentence_select", "all_flipping"]:
                         maxlen = ret_X.shape[1]
                         ret_X_new = np.zeros_like(ret_X)
@@ -151,17 +166,22 @@ class DataProcessor:
                         ret_X = ret_X_new
         else:
             if self.noise_strategy is not None:
-                if self.dataset in ["mnist", "mnist17", "ember"]:
+                if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                        mask = np.random.random(ret_X.shape) < self.alpha  # fix the noise for each example
+                        if self.dataset in EMBER_DATASET:
+                            ret_X = self.kbin.transform(ret_X) / self.K
+
+                        mask = np.random.random(ret_X.shape) < self.alpha
+                        if self.dataset == "ember_limited":  # protect other features
+                            mask[:, self.limit_id] = 1
                         delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
                         ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
                         ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
                     if self.noise_strategy == "RAB_gaussian":
-                        ret_X += np.random.normal(0, self.sigma, ret_X.shape)  # fix the noise for each example
+                        ret_X += np.random.normal(0, self.sigma, ret_X.shape)
                     if self.noise_strategy == "RAB_uniform":
-                        ret_X += np.random.uniform(self.a, self.b, ret_X.shape)  # fix the noise for each example
-                elif self.dataset == "imdb":
+                        ret_X += np.random.uniform(self.a, self.b, ret_X.shape)
+                elif self.dataset in LANGUAGE_DATASET:
                     if self.noise_strategy in ["sentence_select", "all_flipping"]:
                         maxlen = ret_X.shape[1]
                         ret_X_new = []
@@ -169,7 +189,7 @@ class DataProcessor:
                             indices = sorted(np.random.choice(np.arange(maxlen), self.l, replace=False))
                             ret_X_new.append(
                                 np.pad(x[indices], (0, maxlen - self.l), 'constant', constant_values=(0, 0)))
-                            
+
                         ret_X = np.array(ret_X_new)
 
         return ret_X
@@ -302,7 +322,8 @@ class EmberDataPreProcessor(DataPreprocessor):
 
         x_train = x_train.astype(dtype='float64')
         x_test = x_test.astype(dtype='float64')
-
+        if args.K != 1:
+            raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor.")
         # Get rid of unknown labels
         self.x_train = x_train[y_train != -1]
         self.y_train = y_train[y_train != -1]

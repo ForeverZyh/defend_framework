@@ -7,7 +7,7 @@ import numpy as np
 from scipy.stats import beta
 from tqdm import tqdm
 
-from cal_bound import FlipBoundCalculator, SelectBoundCalculator, BoundCalculator
+from utils.cal_bound import FlipBoundCalculator, SelectBoundCalculator, BoundCalculator
 
 
 def output(x):
@@ -197,6 +197,17 @@ if __name__ == "__main__":
                 args.d = 2351
             elif args.noise_strategy == "all_flipping":
                 args.d = 2351 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
+    elif args.dataset == "ember_limited":
+        args.D = 600000
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 17
+            elif args.noise_strategy == "all_flipping":
+                args.d = 17 + 1
             elif args.noise_strategy == "label_flipping":
                 args.d = 1
             else:

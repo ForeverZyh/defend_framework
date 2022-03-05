@@ -1,15 +1,10 @@
-import os
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import binom
-from scipy.special import comb
 from fractions import Fraction
-from multiprocessing import Pool
-import math
 
-from cal_bound import FlipBoundCalculator, SelectBoundCalculator
+from utils.cal_bound import FlipBoundCalculator, SelectBoundCalculator
 
-dataset = "sst2"
+dataset = "ember"
 fig, ax = plt.subplots()
 ax.set_xlabel('r')
 ax.set_ylabel('s')
@@ -34,7 +29,7 @@ elif dataset == "ember":
     D = 600000
     Rbag = int(np.ceil(D * (1 - np.power(1 - (pa - (1 - pa)) / 2, 1 / k))) - 1)
     print(Rbag)
-    d = 2351
+    d = 17
     Rff = 3
     a = 0.7
     K = 1
@@ -56,4 +51,4 @@ def f(args):
     return complete_cnt[mn0]
 
 
-print(bound_cal.get_pa_lb_binary(250, 5))
+print(bound_cal.get_pa_lb_binary(3000, 16))
