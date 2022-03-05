@@ -3,6 +3,7 @@ from fractions import Fraction
 import os
 import numpy as np
 from scipy.special import comb
+from tqdm import trange
 
 from utils.preprocessing_counts import process_count
 
@@ -74,6 +75,7 @@ class BoundCalculator(ABC):
                 r_pa = mid
             else:
                 l_pa = mid
+            print(float(mid))
 
         self.pa_lb_cache[(poisoned_ins_num, poisoned_feat_num)] = r_pa
         np.save(self.cache_file, self.pa_lb_cache)
@@ -201,17 +203,20 @@ class FlipBoundCalculator(BoundCalculator):
 
         complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, d, K, s)
 
-        run_name = f'conv_count_{s}_{K}_{str(Ia).replace("/", "__")}_{str(Ib).replace("/", "__")}_{d}_{k}'
+        run_name = f'conv_count_{s}_{K}_{str(Ia).replace("/", "__")}_{str(Ib).replace("/", "__")}_{d}'
         filename = os.path.join("list_counts", self.fn, f'{run_name}.npz')
         if os.path.exists(filename):
             npzfile = np.load(filename, allow_pickle=True)
             complete_cnt_ps, complete_cnt_qs = npzfile["complete_cnt_ps"], npzfile["complete_cnt_qs"]
         else:
-            print("preparing " + run_name)
             complete_cnt_ps = [[1], complete_cnt_p]
             complete_cnt_qs = [[1], complete_cnt_q]
+
+        if len(complete_cnt_qs) <= k:
+            print("preparing " + run_name)
             # compute convolutions
-            for i in range(2, k + 1):
+            resume_round = len(complete_cnt_qs)
+            for i in trange(resume_round, k + 1):
                 complete_cnt_ps.append([0] * (i * d * 2 + 1))
                 complete_cnt_qs.append([0] * (i * d * 2 + 1))
                 for j in range(d * 2 + 1):

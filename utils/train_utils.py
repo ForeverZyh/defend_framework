@@ -26,8 +26,6 @@ def train_many(data_loader, model, args):
                         x[i] = key_dict[x[i]]
                     else:
                         x[i] = 2
-        elif args.dataset == "ember" and args.noise_strategy in ["feature_flipping", "all_flipping"]:
-            x_test = data_loader.data_processor.kbin.transform(x_test)
 
         prediction_label = model.evaluate(x_test,
                                           keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
