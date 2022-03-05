@@ -55,6 +55,8 @@ class DataProcessor:
                             self.kbin.fit(self.X)
                             if dataset == "ember_limited":
                                 self.limit_id, _, _, _ = load_features(False)
+                                self.limit_mask = np.zeros_like(self.X[0])
+                                self.limit_mask[self.limit_id] = 1
                         else:
                             assert (self.X >= 0).all() and (self.X <= 1).all()
                     if noise_strategy in ["label_flipping", "all_flipping"]:
@@ -95,11 +97,15 @@ class DataProcessor:
             if self.dataset in FEATURE_DATASET:
                 if self.noise_strategy in ["feature_flipping", "all_flipping"]:
                     if self.dataset in EMBER_DATASET:
-                        ret_X = self.kbin.transform(ret_X) / self.K
+                        categorized = self.kbin.transform(ret_X) / self.K
+                        if self.dataset == "ember_limited":
+                            ret_X[:, self.limit_id] = categorized[:, self.limit_id]
+                        else:
+                            ret_X = categorized
 
                     mask = np.random.random(ret_X.shape) < self.alpha
                     if self.dataset == "ember_limited":  # protect other features
-                        mask[:, self.limit_id] = 1
+                        mask *= self.limit_mask
                     delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
                     ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
                     ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
@@ -142,12 +148,9 @@ class DataProcessor:
             if self.noise_strategy is not None:
                 if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                        if self.dataset in EMBER_DATASET:
-                            ret_X = self.kbin.transform(ret_X) / self.K
-
                         mask = np.random.random(ret_X.shape[1:]) < self.alpha  # fix the noise for each example
                         if self.dataset == "ember_limited":  # protect other features
-                            mask[self.limit_id] = 1
+                            mask *= self.limit_mask
                         delta = np.random.randint(1, self.K + 1, ret_X.shape[1:]) / self.K
                         ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
                         ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
@@ -168,12 +171,9 @@ class DataProcessor:
             if self.noise_strategy is not None:
                 if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                        if self.dataset in EMBER_DATASET:
-                            ret_X = self.kbin.transform(ret_X) / self.K
-
                         mask = np.random.random(ret_X.shape) < self.alpha
                         if self.dataset == "ember_limited":  # protect other features
-                            mask[:, self.limit_id] = 1
+                            mask *= self.limit_mask
                         delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
                         ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
                         ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K

@@ -2,6 +2,7 @@ import numpy as np
 from tensorflow import keras
 
 from utils.dataaug import DataGeneratorForMNIST
+from utils.data_processing import EMBER_DATASET
 
 
 def train_many(data_loader, model, args):
@@ -26,6 +27,12 @@ def train_many(data_loader, model, args):
                         x[i] = key_dict[x[i]]
                     else:
                         x[i] = 2
+        elif args.dataset in EMBER_DATASET and args.noise_strategy in ["feature_flipping", "all_flipping"]:
+            categorized = data_loader.data_processor.kbin.transform(x_test)
+            if args.dataset == "ember_limited":
+                x_test[:, data_loader.data_processor.limit_id] = categorized[:, data_loader.data_processor.limit_id]
+            else:
+                x_test = categorized
 
         prediction_label = model.evaluate(x_test,
                                           keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
