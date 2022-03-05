@@ -28,7 +28,7 @@ def train_many(data_loader, model, args):
                     else:
                         x[i] = 2
         elif args.dataset in EMBER_DATASET and args.noise_strategy in ["feature_flipping", "all_flipping"]:
-            categorized = data_loader.data_processor.kbin.transform(x_test)
+            categorized = data_loader.data_processor.kbin.transform(x_test) / args.K
             if args.dataset == "ember_limited":
                 x_test[:, data_loader.data_processor.limit_id] = categorized[:, data_loader.data_processor.limit_id]
             else:
