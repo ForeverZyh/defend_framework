@@ -142,6 +142,10 @@ class DataProcessor:
                         key_dict[x[i]] = len(key_dict)
                     x[i] = key_dict[x[i]]
 
+        if self.dataset in EMBER_DATASET:
+            self.normal = StandardScaler()
+            ret_X = self.normal.fit_transform(ret_X)
+
         return ret_X, ret_y
 
     def process_test(self, X, fix_noise):
@@ -196,6 +200,9 @@ class DataProcessor:
 
                         ret_X = np.array(ret_X_new)
 
+        if self.dataset in EMBER_DATASET:
+            ret_X = self.normal.transform(ret_X)
+
         return ret_X
 
 
@@ -243,7 +250,7 @@ class MNIST17DataPreprocessor(DataPreprocessor):
         x_test = x_test.astype('float32')
         self.x_train = x_train / 255
         self.x_test = x_test / 255
-        if args.K != 1:
+        if args.K != 1 and args.noise_strategy in ["label_flipping", "all_flipping"]:
             raise NotImplementedError("K != 1 not implemented for MNIST17DataPreprocessor.")
         if args.noise_strategy in ["feature_flipping", "all_flipping"]:
             self.x_train = self.x_train >= 0.5
@@ -326,16 +333,13 @@ class EmberDataPreProcessor(DataPreprocessor):
 
         x_train = x_train.astype(dtype='float64')
         x_test = x_test.astype(dtype='float64')
-        if args.K != 1:
+        if args.K != 1 and args.noise_strategy in ["label_flipping", "all_flipping"]:
             raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor.")
         # Get rid of unknown labels
         self.x_train = x_train[y_train != -1]
         self.y_train = y_train[y_train != -1]
         self.x_test = x_test[y_test != -1]
         self.y_test = y_test[y_test != -1]
-        normal = StandardScaler()
-        self.x_train = normal.fit_transform(self.x_train)
-        self.x_test = normal.transform(self.x_test)
 
         self.n_features = x_train.shape[1]
         self.n_classes = 2

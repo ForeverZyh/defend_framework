@@ -34,8 +34,12 @@ def train_many(data_loader, model, args):
             else:
                 x_test = categorized
 
-        prediction_label = model.evaluate(x_test,
-                                          keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
+        if args.dataset in EMBER_DATASET:
+            prediction_label = model.evaluate(data_loader.data_processor.normal.transform(x_test),
+                                              keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
+        else:
+            prediction_label = model.evaluate(x_test,
+                                              keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
         aggregate_result[np.arange(0, test_size), prediction_label] += 1
         X_test = data_loader.data_processor.process_test(x_test, False)
         prediction_label = model.evaluate(X_test, keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))

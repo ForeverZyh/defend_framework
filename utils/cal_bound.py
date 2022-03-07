@@ -207,7 +207,7 @@ class FlipBoundCalculator(BoundCalculator):
         filename = os.path.join("list_counts", self.fn, f'{run_name}.npz')
         if os.path.exists(filename):
             npzfile = np.load(filename, allow_pickle=True)
-            complete_cnt_ps, complete_cnt_qs = npzfile["complete_cnt_ps"], npzfile["complete_cnt_qs"]
+            complete_cnt_ps, complete_cnt_qs = list(npzfile["complete_cnt_ps"]), list(npzfile["complete_cnt_qs"])
         else:
             complete_cnt_ps = [[1], complete_cnt_p]
             complete_cnt_qs = [[1], complete_cnt_q]
