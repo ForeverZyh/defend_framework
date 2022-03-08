@@ -1,17 +1,21 @@
 import numpy as np
 from tensorflow import keras
+from tqdm import trange
+import os
 
 from utils.dataaug import DataGeneratorForMNIST
 from utils.data_processing import EMBER_DATASET
 
 
-def train_many(data_loader, model, args):
+def train_many(data_loader, model, args, aggregate_result, aggregate_noise_result):
     test_size = data_loader.x_test.shape[0]
-    aggregate_result = np.zeros([test_size, data_loader.n_classes + 1], dtype=np.int)
-    aggregate_noise_result = np.zeros([test_size, data_loader.n_classes + 1], dtype=np.int)
+    if aggregate_result is None:
+        aggregate_result = np.zeros([test_size, data_loader.n_classes + 1], dtype=np.int)
+        aggregate_noise_result = np.zeros([test_size, data_loader.n_classes + 1], dtype=np.int)
     # using the last index for the ground truth label
     datagen = DataGeneratorForMNIST() if args.data_aug and args.dataset in ["mnist", "mnist17"] else None
-    for i in range(args.N):
+    remaining = args.N - np.sum(aggregate_result[0])
+    for i in trange(remaining):
         key_dict = {0: 0, 1: 1, 2: 2}  # used for imdb dataset to get word idx
         X, y = data_loader.data_processor.process_train(key_dict)
         y = keras.utils.to_categorical(y, data_loader.n_classes)
@@ -41,16 +45,20 @@ def train_many(data_loader, model, args):
             prediction_label = model.evaluate(x_test,
                                               keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
         aggregate_result[np.arange(0, test_size), prediction_label] += 1
-        X_test = data_loader.data_processor.process_test(x_test, False)
-        prediction_label = model.evaluate(X_test, keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
-        aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
+        if args.noise_strategy is None:
+             aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
+        else:
+            X_test = data_loader.data_processor.process_test(x_test, False)
+            prediction_label = model.evaluate(X_test, keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
+            aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
 
         model.init()
+        np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))
+
     aggregate_result[np.arange(0, test_size), -1] = data_loader.y_test
     aggregate_noise_result[np.arange(0, test_size), -1] = data_loader.y_test
     print(aggregate_result, aggregate_noise_result)
-    return aggregate_result, aggregate_noise_result
-
+    np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))
 
 def train_single(data_loader, model, args):
     # train single classifier for attacking

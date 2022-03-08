@@ -333,8 +333,8 @@ class EmberDataPreProcessor(DataPreprocessor):
 
         x_train = x_train.astype(dtype='float64')
         x_test = x_test.astype(dtype='float64')
-        if args.K != 1 and args.noise_strategy in ["label_flipping", "all_flipping"]:
-            raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor.")
+        if args.K != 1 and args.noise_strategy in ["all_flipping"]:
+            raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor with all_flipping.")
         # Get rid of unknown labels
         self.x_train = x_train[y_train != -1]
         self.y_train = y_train[y_train != -1]

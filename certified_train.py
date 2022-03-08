@@ -80,9 +80,9 @@ if __name__ == "__main__":
             # Memory growth must be set before GPUs have been initialized
             print(e)
 
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    tf.random.set_seed(args.seed)
+    #random.seed(args.seed)
+    #np.random.seed(args.seed)
+    #tf.random.set_seed(args.seed)
 
     # make dirs
     if args.exp_name is None:
@@ -92,13 +92,19 @@ if __name__ == "__main__":
         if not os.path.exists(args.model_save_dir):
             os.mkdir(args.model_save_dir)
         os.mkdir(os.path.join(args.model_save_dir, args.exp_name))
-
+    
+    res = None
+    res_noise = None
     if args.res_save_dir is not None:
         if not os.path.exists(args.res_save_dir):
             os.mkdir(args.res_save_dir)
         if os.path.exists(os.path.join(args.res_save_dir, args.exp_name)):
-            respond = input("Experiment already exists, type [Y] to overwrite")
-            if respond != "Y":
+            respond = input("Experiment already exists, type [O] to overwrite, type [R] to resume")
+            if respond == "O":
+                pass
+            elif respond == "R":
+                res, res_noise = np.load(os.path.join(args.res_save_dir, args.exp_name, "aggre_res.npy"))
+            else:
                 exit(0)
         else:
             os.mkdir(os.path.join(args.res_save_dir, args.exp_name))
@@ -132,7 +138,7 @@ if __name__ == "__main__":
     else:
         raise NotImplementedError
 
-    aggregate_results = train_many(data_loader, model, args)
-    np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), aggregate_results)
     with open(os.path.join(args.res_save_dir, args.exp_name, "commandline_args.txt"), 'w') as f:
         json.dump(args.__dict__, f, indent=2)
+    aggregate_results = train_many(data_loader, model, args, res, res_noise)
+

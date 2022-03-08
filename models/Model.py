@@ -34,7 +34,7 @@ class Model(ABC):
         self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4)
 
     def evaluate(self, x_test, y_test):
-        score = self.model.evaluate(x_test, y_test, verbose=0)
+        score = self.model.evaluate(x_test, y_test, verbose=0, batch_size=512)
         print('Test loss:', score[0])
         print('Test accuracy:', score[1])
 
