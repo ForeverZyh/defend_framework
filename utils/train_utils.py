@@ -12,9 +12,12 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
     if aggregate_result is None:
         aggregate_result = np.zeros([test_size, data_loader.n_classes + 1], dtype=np.int)
         aggregate_noise_result = np.zeros([test_size, data_loader.n_classes + 1], dtype=np.int)
+    aggregate_result[np.arange(0, test_size), -1] = data_loader.y_test
+    aggregate_noise_result[np.arange(0, test_size), -1] = data_loader.y_test
+    
     # using the last index for the ground truth label
     datagen = DataGeneratorForMNIST() if args.data_aug and args.dataset in ["mnist", "mnist17"] else None
-    remaining = args.N - np.sum(aggregate_result[0])
+    remaining = args.N - np.sum(aggregate_result[0, :-1])
     for i in trange(remaining):
         key_dict = {0: 0, 1: 1, 2: 2}  # used for imdb dataset to get word idx
         X, y = data_loader.data_processor.process_train(key_dict)
@@ -55,10 +58,7 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
         model.init()
         np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))
 
-    aggregate_result[np.arange(0, test_size), -1] = data_loader.y_test
-    aggregate_noise_result[np.arange(0, test_size), -1] = data_loader.y_test
     print(aggregate_result, aggregate_noise_result)
-    np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))
 
 def train_single(data_loader, model, args):
     # train single classifier for attacking

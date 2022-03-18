@@ -45,6 +45,8 @@ class BoundCalculator(ABC):
         for i in range(self.k + 1):
             p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
                     (1 - Fraction(x, self.D)) ** (self.k - i))
+        if pa - (1 - p_binom[0]) > Fraction(1, 2):
+            return True
 
         return self.check_NP_binary(s, Fraction(pa), p_binom)
 
@@ -61,25 +63,57 @@ class BoundCalculator(ABC):
         for i in range(self.k + 1):
             p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
                     (1 - Fraction(x, self.D)) ** (self.k - i))
+        if pa - (1 - p_binom[0]) > pb + (1 - p_binom[0]):
+            return True
 
         return self.check_NP(s, Fraction(pa), Fraction(pb), p_binom)
 
     def get_pa_lb_binary(self, poisoned_ins_num, poisoned_feat_num):
         if (poisoned_ins_num, poisoned_feat_num) in self.pa_lb_cache:
             return self.pa_lb_cache[(poisoned_ins_num, poisoned_feat_num)]
-        l_pa = Fraction(0)
+        l_pa = Fraction(1, 2)
         r_pa = Fraction(1)
-        for i in range(50):
+        for i in range(25): # about 1e-8
             mid = (l_pa + r_pa) / 2
             if self.check_radius_binary(poisoned_ins_num, poisoned_feat_num, mid):
                 r_pa = mid
             else:
                 l_pa = mid
-            print(float(mid))
+            print(float(r_pa))
 
         self.pa_lb_cache[(poisoned_ins_num, poisoned_feat_num)] = r_pa
         np.save(self.cache_file, self.pa_lb_cache)
         return r_pa
+    
+    def get_poisoned_ins_binary(self, poisoned_feat_num, top_1, top_2, p_a, N, st=-1):
+        # binary search O(2log(ans))
+        if p_a <= Fraction(1, 2):
+            return -1
+        if (poisoned_feat_num, top_1, top_2, N) in self.pa_lb_cache:
+            return self.pa_lb_cache[(poisoned_feat_num, top_1, top_2, N)]
+        if st == -1 and not self.check_radius_binary(0, poisoned_feat_num, p_a):
+            ret = -1
+        else:
+            if st == -1:
+                st = 0
+            feasible_l = -1
+            for l in range(20):
+                if not self.check_radius_binary(st + 2 ** l, poisoned_feat_num, p_a):
+                    feasible_l = l - 1
+                    break
+
+            if feasible_l == -1:
+                ret = st
+            else:
+                ans = st + 2 ** feasible_l
+                for l in range(feasible_l - 1, -1, -1):
+                    if self.check_radius_binary(ans + 2 ** l, poisoned_feat_num, p_a):
+                        ans += 2 ** l
+                ret = ans
+
+        self.pa_lb_cache[(poisoned_feat_num, top_1, top_2, N)] = ret
+        np.save(self.cache_file, self.pa_lb_cache)
+        return ret
 
 
 class SelectBoundCalculator(BoundCalculator):
@@ -257,22 +291,3 @@ class FlipBoundCalculator(BoundCalculator):
 
         return achieved
 
-    def get_poisoned_ins_ub_binary(self, poisoned_feat_num, p_a):
-        # binary search O(2log(ans))
-        if not self.check_radius_binary(0, poisoned_feat_num, p_a):
-            return -1
-        else:
-            feasible_l = -1
-            for l in range(20):
-                if not self.check_radius_binary(2 ** l, poisoned_feat_num, p_a):
-                    feasible_l = l - 1
-                    break
-
-            if feasible_l == -1:
-                return 0
-            else:
-                ans = 2 ** feasible_l
-                for l in range(feasible_l - 1, -1, -1):
-                    if self.check_radius_binary(ans + 2 ** l, poisoned_feat_num, p_a):
-                        ans += 2 ** l
-                return ans

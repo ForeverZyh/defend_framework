@@ -111,17 +111,47 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
             else:
                 ret[i] = -1
             ori = ret[i]
-            if n_classes == 2:
-                if p_a < bound_cal.get_pa_lb_binary(poisoned_ins_num, poisoned_feat_num):  # abstain
+            if (poisoned_feat_num, top_1, top_2, N) in bound_cal.pa_lb_cache:
+                if bound_cal.pa_lb_cache[(poisoned_feat_num, top_1, top_2, N)] <= poisoned_ins_num:
                     ret[i] = 0
             else:
-                if not bound_cal.check_radius(poisoned_ins_num, poisoned_feat_num, p_a, p_b):  # abstain
-                    ret[i] = 0
+                if n_classes == 2:
+                    if p_a < bound_cal.get_pa_lb_binary(poisoned_ins_num, poisoned_feat_num):  # abstain
+                        ret[i] = 0
+                else:
+                    if not bound_cal.check_radius(poisoned_ins_num, poisoned_feat_num, p_a, p_b):  # abstain
+                        ret[i] = 0
             metric.update(ori, ret[i])
             progress_bar.set_postfix(metric.get_postfix())
             progress_bar.update(1)
 
     return ret
+
+def precompute_binary(res, conf, poisoned_feat_num, bound_cal: BoundCalculator):
+    # res.shape: (n_examples, n_classes + 1)
+    ret = np.ones(res.shape[0])
+    alpha = (1 - conf) / res.shape[0]
+    n_classes = res.shape[1] - 1
+    assert n_classes == 2
+    bags = np.sum(res[0][:-1])
+    tops = sorted(list(set([res[i][np.argmax(res[i][:-1])] for i in range(len(res))])))
+    pre_res = -1
+    with tqdm(total=len(tops)) as progress_bar:
+        for top_1 in tops:
+            top_2 = bags - top_1 
+            if top_1 == bags:
+                p_a = np.power(alpha / n_classes, 1.0 / bags)
+                p_b = 1 - p_a
+            else:
+                p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p >= p_a
+                p_b = beta.ppf(1 - alpha / n_classes, top_2 + 1, bags - top_2)  # p' <= p_b
+            p_a = max(p_a, 1 - p_b)
+            p_b = min(p_b, 1 - p_a)
+        
+            pre_res = bound_cal.get_poisoned_ins_binary(poisoned_feat_num, top_1, top_2, p_a, bags, st=pre_res)
+            progress_bar.set_postfix({"ins": pre_res, "top_1": top_1})
+            progress_bar.update(1)
+
 
 
 if __name__ == "__main__":
@@ -237,7 +267,10 @@ if __name__ == "__main__":
                 Ia = Fraction(int(args.alpha * 100), 100)
                 bound_cal = SelectBoundCalculator((Ia, (1 - Ia) / args.K, args.K), args.dataset, args.D, args.L, args.k,
                                                   args.l)
-
+        else:
+            raise NotImplementedError
+        if res.shape[1] - 1 == 2: # n_classes == 2
+            precompute_binary(res, args.confidence, args.poisoned_feat_num, bound_cal)
         for poison_ins_num in poisoned_ins_num_range:
             if poison_ins_num in cache:
                 ret = cache[poison_ins_num]
