@@ -116,10 +116,10 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
                     ret[i] = 0
             else:
                 if n_classes == 2:
-                    if p_a < bound_cal.get_pa_lb_binary(poisoned_ins_num, poisoned_feat_num):  # abstain
+                    if p_a < bound_cal.get_pa_lb_binary(poisoned_ins_num):  # abstain
                         ret[i] = 0
                 else:
-                    if not bound_cal.check_radius(poisoned_ins_num, poisoned_feat_num, p_a, p_b):  # abstain
+                    if not bound_cal.check_radius(poisoned_ins_num, p_a, p_b):  # abstain
                         ret[i] = 0
             metric.update(ori, ret[i])
             progress_bar.set_postfix(metric.get_postfix())
@@ -127,7 +127,7 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
 
     return ret
 
-def precompute_binary(res, conf, poisoned_feat_num, bound_cal: BoundCalculator):
+def precompute_binary(res, conf, bound_cal: BoundCalculator):
     # res.shape: (n_examples, n_classes + 1)
     ret = np.ones(res.shape[0])
     alpha = (1 - conf) / res.shape[0]
@@ -148,7 +148,7 @@ def precompute_binary(res, conf, poisoned_feat_num, bound_cal: BoundCalculator):
             p_a = max(p_a, 1 - p_b)
             p_b = min(p_b, 1 - p_a)
         
-            pre_res = bound_cal.get_poisoned_ins_binary(poisoned_feat_num, top_1, top_2, p_a, bags, st=pre_res)
+            pre_res = bound_cal.get_poisoned_ins_binary(top_1, top_2, p_a, bags, st=pre_res)
             progress_bar.set_postfix({"ins": pre_res, "top_1": top_1})
             progress_bar.update(1)
 
@@ -259,18 +259,18 @@ if __name__ == "__main__":
                                                                                "all_flipping", "sentence_select"]:
         if args.dataset in ["mnist", "mnist17", "ember"]:
             Ia = Fraction(int(args.alpha * 100), 100)
-            bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k)
+            bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k, args.poisoned_feat_num)
         elif args.dataset == "imdb":
             if args.noise_strategy == "sentence_select":
-                bound_cal = SelectBoundCalculator(None, args.dataset, args.D, args.L, args.k, args.l)
+                bound_cal = SelectBoundCalculator(None, args.dataset, args.D, args.L, args.k, args.l, args.poisoned_feat_num)
             else:
                 Ia = Fraction(int(args.alpha * 100), 100)
                 bound_cal = SelectBoundCalculator((Ia, (1 - Ia) / args.K, args.K), args.dataset, args.D, args.L, args.k,
-                                                  args.l)
+                                                  args.l, args.poisoned_feat_num)
         else:
             raise NotImplementedError
         if res.shape[1] - 1 == 2: # n_classes == 2
-            precompute_binary(res, args.confidence, args.poisoned_feat_num, bound_cal)
+            precompute_binary(res, args.confidence, bound_cal)
         for poison_ins_num in poisoned_ins_num_range:
             if poison_ins_num in cache:
                 ret = cache[poison_ins_num]
