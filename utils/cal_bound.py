@@ -4,6 +4,7 @@ import os
 import numpy as np
 from scipy.special import comb
 from tqdm import trange
+import time
 
 from utils.preprocessing_counts import process_count
 
@@ -71,7 +72,7 @@ class BoundCalculator(ABC):
             return self.pa_lb_cache[(poisoned_ins_num, self.s)]
         l_pa = Fraction(1, 2)
         r_pa = Fraction(1)
-        for i in range(25): # about 1e-8
+        for i in range(25):  # about 1e-8
             mid = (l_pa + r_pa) / 2
             if self.check_radius_binary(poisoned_ins_num, mid):
                 r_pa = mid
@@ -82,8 +83,8 @@ class BoundCalculator(ABC):
         self.pa_lb_cache[(poisoned_ins_num, self.s)] = r_pa
         np.save(self.cache_file, self.pa_lb_cache)
         return r_pa
-    
-    def get_poisoned_ins_binary(self, top_1, top_2, p_a, N, st=-1):
+
+    def get_poisoned_ins_binary(self, top_1, top_2, p_a, N, st=-1, parallel_num=None, parallel_id=None):
         # binary search O(2log(ans))
         if p_a <= Fraction(1, 2):
             return -1
@@ -110,8 +111,31 @@ class BoundCalculator(ABC):
                 ret = ans
 
         self.pa_lb_cache[(self.s, top_1, top_2, N)] = ret
-        np.save(self.cache_file, self.pa_lb_cache)
+        self.sync_cache(parallel_num, parallel_id)
         return ret
+
+    def sync_cache(self, parallel_num, parallel_id):
+        """
+        sync the cache file
+        :param parallel_num: the number of parallel runs
+        :param parallel_id: the current parallel id
+        :return:
+        """
+        if parallel_num is not None:
+            time_sec_float = time.time()
+            time_sec_int = np.floor(time_sec_float) // parallel_num * parallel_num + parallel_id
+            if time_sec_float < time_sec_int:
+                time.sleep(time_sec_int - time_sec_float + 0.5)
+            elif time_sec_int <= time_sec_float < time_sec_int + 1:
+                pass
+            else:
+                time_sec_int += parallel_num
+                time.sleep(time_sec_int - time_sec_float + 0.5)
+
+        tmp = np.load(self.cache_file + ".npy", allow_pickle=True).item()
+
+        self.pa_lb_cache.update(tmp)
+        np.save(self.cache_file, self.pa_lb_cache)
 
 
 class SelectBoundCalculator(BoundCalculator):
@@ -136,7 +160,7 @@ class SelectBoundCalculator(BoundCalculator):
         try:
             self.pa_lb_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
         except:
-            pass
+            np.save(self.cache_file, self.pa_lb_cache)
 
     def cal_NP_bound(self, remain_to_assign, p_binom, reverse=False, early_stop=None):
         """
@@ -219,15 +243,16 @@ class FlipBoundCalculator(BoundCalculator):
         try:
             self.pa_lb_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
         except:
-            pass
-        
+            np.save(self.cache_file, self.pa_lb_cache)
+
         self.complete_cnt_p, self.complete_cnt_q = process_count(Ia, Ib, d, K, s)
 
         run_name = f'conv_count_{s}_{K}_{str(Ia).replace("/", "__")}_{str(Ib).replace("/", "__")}_{d}'
         filename = os.path.join("list_counts", self.fn, f'{run_name}.npz')
         if os.path.exists(filename):
             npzfile = np.load(filename, allow_pickle=True)
-            self.complete_cnt_ps, self.complete_cnt_qs = list(npzfile["complete_cnt_ps"]), list(npzfile["complete_cnt_qs"])
+            self.complete_cnt_ps, self.complete_cnt_qs = list(npzfile["complete_cnt_ps"]), list(
+                npzfile["complete_cnt_qs"])
         else:
             self.complete_cnt_ps = [[1], self.complete_cnt_p]
             self.complete_cnt_qs = [[1], self.complete_cnt_q]
@@ -242,13 +267,14 @@ class FlipBoundCalculator(BoundCalculator):
                 for j in range(d * 2 + 1):
                     if self.complete_cnt_ps[1][j] > 0 or self.complete_cnt_qs[1][j] > 0:
                         for k_ in range(d * (i - 1) * 2 + 1):
-                            self.complete_cnt_ps[i][j + k_] += self.complete_cnt_ps[1][j] * self.complete_cnt_ps[i - 1][k_]
-                            self.complete_cnt_qs[i][j + k_] += self.complete_cnt_qs[1][j] * self.complete_cnt_qs[i - 1][k_]
+                            self.complete_cnt_ps[i][j + k_] += self.complete_cnt_ps[1][j] * self.complete_cnt_ps[i - 1][
+                                k_]
+                            self.complete_cnt_qs[i][j + k_] += self.complete_cnt_qs[1][j] * self.complete_cnt_qs[i - 1][
+                                k_]
             np.savez(filename,
                      complete_cnt_ps=self.complete_cnt_ps,
                      complete_cnt_qs=self.complete_cnt_qs)
             print("save file " + run_name + ".npz")
-
 
     def cal_NP_bound(self, remain_to_assign, p_binom, reverse=False, early_stop=None):
         """
@@ -266,7 +292,7 @@ class FlipBoundCalculator(BoundCalculator):
         s = self.s
         complete_cnt_ps, complete_cnt_qs = self.complete_cnt_ps, self.complete_cnt_qs
         achieved = 0
-        
+
         if not reverse:
             _range = range(-k * d, k * d + 1)
         else:
@@ -294,4 +320,3 @@ class FlipBoundCalculator(BoundCalculator):
                     return achieved
 
         return achieved
-

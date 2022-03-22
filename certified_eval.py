@@ -111,8 +111,8 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
             else:
                 ret[i] = -1
             ori = ret[i]
-            if (poisoned_feat_num, top_1, top_2, N) in bound_cal.pa_lb_cache:
-                if bound_cal.pa_lb_cache[(poisoned_feat_num, top_1, top_2, N)] <= poisoned_ins_num:
+            if (poisoned_feat_num, top_1, top_2, bags) in bound_cal.pa_lb_cache:
+                if bound_cal.pa_lb_cache[(poisoned_feat_num, top_1, top_2, bags)] <= poisoned_ins_num:
                     ret[i] = 0
             else:
                 if n_classes == 2:
@@ -127,7 +127,8 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
 
     return ret
 
-def precompute_binary(res, conf, bound_cal: BoundCalculator):
+
+def precompute_binary(res, conf, bound_cal: BoundCalculator, parallel_num=None, parallel_id=None):
     # res.shape: (n_examples, n_classes + 1)
     ret = np.ones(res.shape[0])
     alpha = (1 - conf) / res.shape[0]
@@ -135,10 +136,12 @@ def precompute_binary(res, conf, bound_cal: BoundCalculator):
     assert n_classes == 2
     bags = np.sum(res[0][:-1])
     tops = sorted(list(set([res[i][np.argmax(res[i][:-1])] for i in range(len(res))])))
+    if parallel_num is not None:
+        tops = tops[parallel_id::parallel_num]
     pre_res = -1
     with tqdm(total=len(tops)) as progress_bar:
         for top_1 in tops:
-            top_2 = bags - top_1 
+            top_2 = bags - top_1
             if top_1 == bags:
                 p_a = np.power(alpha / n_classes, 1.0 / bags)
                 p_b = 1 - p_a
@@ -147,11 +150,11 @@ def precompute_binary(res, conf, bound_cal: BoundCalculator):
                 p_b = beta.ppf(1 - alpha / n_classes, top_2 + 1, bags - top_2)  # p' <= p_b
             p_a = max(p_a, 1 - p_b)
             p_b = min(p_b, 1 - p_a)
-        
-            pre_res = bound_cal.get_poisoned_ins_binary(top_1, top_2, p_a, bags, st=pre_res)
+
+            pre_res = bound_cal.get_poisoned_ins_binary(top_1, top_2, p_a, bags, st=pre_res, parallel_num=parallel_num,
+                                                        parallel_id=parallel_id)
             progress_bar.set_postfix({"ins": pre_res, "top_1": top_1})
             progress_bar.update(1)
-
 
 
 if __name__ == "__main__":
@@ -175,12 +178,20 @@ if __name__ == "__main__":
     parser.add_argument("--poisoned_ins_num_step", default=1, type=int,
                         help="the step of the poisoned instance number."
                         )
+    parser.add_argument("--parallel_precompute", default=None, type=int,
+                        help="the number of manual split for the parallel. None for not parallel"
+                        )
+    parser.add_argument("--parallel_precompute_id", default=None, type=int,
+                        help="the manual split id"
+                        )
 
     args = parser.parse_args()
     with open(os.path.join(args.load_dir, "commandline_args.txt"), 'r') as f:
         conf = args.confidence  # override the confidence
         args.__dict__.update(json.load(f))
         args.confidence = conf
+    if args.parallel_precompute is not None:
+        assert args.parallel_precompute_id is not None and 0 <= args.parallel_precompute_id < args.parallel_precompute
     poisoned_ins_num_range = range(args.poisoned_ins_num_st, args.poisoned_ins_num_en + 1, args.poisoned_ins_num_step)
     cache_filename = os.path.join(args.load_dir, args.cache_filename)
     if os.path.exists(cache_filename + ".npy"):
@@ -259,18 +270,21 @@ if __name__ == "__main__":
                                                                                "all_flipping", "sentence_select"]:
         if args.dataset in ["mnist", "mnist17", "ember"]:
             Ia = Fraction(int(args.alpha * 100), 100)
-            bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k, args.poisoned_feat_num)
+            bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k,
+                                            args.poisoned_feat_num)
         elif args.dataset == "imdb":
             if args.noise_strategy == "sentence_select":
-                bound_cal = SelectBoundCalculator(None, args.dataset, args.D, args.L, args.k, args.l, args.poisoned_feat_num)
+                bound_cal = SelectBoundCalculator(None, args.dataset, args.D, args.L, args.k, args.l,
+                                                  args.poisoned_feat_num)
             else:
                 Ia = Fraction(int(args.alpha * 100), 100)
                 bound_cal = SelectBoundCalculator((Ia, (1 - Ia) / args.K, args.K), args.dataset, args.D, args.L, args.k,
                                                   args.l, args.poisoned_feat_num)
         else:
             raise NotImplementedError
-        if res.shape[1] - 1 == 2: # n_classes == 2
-            precompute_binary(res, args.confidence, bound_cal)
+        if res.shape[1] - 1 == 2:  # n_classes == 2
+            precompute_binary(res, args.confidence, bound_cal, parallel_num=args.parallel_precompute,
+                              parallel_id=args.parallel_precompute_id)
         for poison_ins_num in poisoned_ins_num_range:
             if poison_ins_num in cache:
                 ret = cache[poison_ins_num]
