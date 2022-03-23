@@ -40,6 +40,7 @@ if __name__ == "__main__":
         else:
             warnings.warn(f"{os.path.join(folder, f'plot_{args.poisoned_feat_num}.npy')} does not detected!")
 
+    warnings.warn("The above stats are approximated!")
     prop_cycle = plt.rcParams['axes.prop_cycle']
     colors = prop_cycle.by_key()['color']
     for i, folder_ in enumerate(folders):

@@ -48,7 +48,7 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
             prediction_label = model.evaluate(x_test,
                                               keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
         aggregate_result[np.arange(0, test_size), prediction_label] += 1
-        if args.noise_strategy is None:
+        if args.noise_strategy is None or args.no_eval_noise:
              aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
         else:
             X_test = data_loader.data_processor.process_test(x_test, False)

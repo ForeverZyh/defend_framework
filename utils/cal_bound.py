@@ -86,10 +86,12 @@ class BoundCalculator(ABC):
 
     def get_poisoned_ins_binary(self, top_1, top_2, p_a, N, st=-1, parallel_num=None, parallel_id=None):
         # binary search O(2log(ans))
-        if p_a <= Fraction(1, 2):
-            return -1
         if (self.s, top_1, top_2, N) in self.pa_lb_cache:
             return self.pa_lb_cache[(self.s, top_1, top_2, N)]
+        if p_a <= Fraction(1, 2):
+            self.pa_lb_cache[(self.s, top_1, top_2, N)] = -1
+            self.sync_cache(parallel_num, parallel_id)
+            return -1
         if st == -1 and not self.check_radius_binary(0, p_a):
             ret = -1
         else:
@@ -113,6 +115,50 @@ class BoundCalculator(ABC):
         self.pa_lb_cache[(self.s, top_1, top_2, N)] = ret
         self.sync_cache(parallel_num, parallel_id)
         return ret
+
+    def cal_st(self, top_1, top_2, N):
+        ret = -1
+        for key in self.pa_lb_cache:
+            if isinstance(key, tuple) and len(key) == 4:
+                _, top_1_, top_2_, N_ = key
+                if top_1 >= top_1_ and top_2 <= top_2_ and N == N_:
+                    ret = max(ret, self.pa_lb_cache[key])
+
+        return ret
+
+    def get_poisoned_ins(self, top_1, top_2, p_a, p_b, N, parallel_num=None, parallel_id=None):
+        # binary search O(2log(ans))
+        if (self.s, top_1, top_2, N) in self.pa_lb_cache:
+            return self.pa_lb_cache[(self.s, top_1, top_2, N)]
+        if p_a <= p_b:
+            self.pa_lb_cache[(self.s, top_1, top_2, N)] = -1
+            self.sync_cache(parallel_num, parallel_id)
+            return -1
+        st = self.cal_st(top_1, top_2, N)
+        if st == -1 and not self.check_radius(0, p_a, p_b):
+            ret = -1
+        else:
+            if st == -1:
+                st = 0
+            feasible_l = -1
+            for l in range(20):
+                if not self.check_radius(st + 2 ** l, p_a, p_b):
+                    feasible_l = l - 1
+                    break
+
+            if feasible_l == -1:
+                ret = st
+            else:
+                ans = st + 2 ** feasible_l
+                for l in range(feasible_l - 1, -1, -1):
+                    if self.check_radius(ans + 2 ** l, p_a, p_b):
+                        ans += 2 ** l
+                ret = ans
+
+        self.pa_lb_cache[(self.s, top_1, top_2, N)] = ret
+        self.sync_cache(parallel_num, parallel_id)
+        return ret
+
 
     def sync_cache(self, parallel_num, parallel_id):
         """

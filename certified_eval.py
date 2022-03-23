@@ -54,20 +54,8 @@ def get_abstain_bagging_replace(res, conf, ex_in_bag, poison_ins_num, D, poison_
             majority = np.argmax(res[i][:-1])
             top_1 = res[i][majority]
             top_2 = max(res[i][j] for j in range(n_classes) if j != majority)
-            if top_1 == bags:
-                p_a = np.power(alpha / n_classes, 1.0 / bags)
-                p_b = 1 - p_a
-            else:
-                p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p >= p_a
-                p_b = beta.ppf(1 - alpha / n_classes, top_2 + 1, bags - top_2)  # p' <= p_b
-            # p + p' <= 1 if n_classes == 2, else p + p' == 1
-            # p - p' >= ?
-            # E.g., p_a = 0.7, p_b = 0.4, p - p' >= 0.7 - 0.3 = 0.4
-            # E.g., p_a = 0.7, p_b = 0.2, p - p' >= 0.7 - 0.2 = 0.5
-            if n_classes > 2:
-                delta_lower_bound = p_a - min(p_b, 1 - p_a) - 2e-50
-            else:
-                delta_lower_bound = max(p_a, 1 - p_b) - min(p_b, 1 - p_a) - 2e-50
+            p_a, p_b = get_pa_pb(top_1, top_2, bags, alpha, n_classes)
+            delta_lower_bound = p_a - p_b - 2e-50
 
             if majority == res[i][-1]:
                 ret[i] = 1
@@ -96,16 +84,7 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
             majority = np.argmax(res[i][:-1])
             top_1 = res[i][majority]
             top_2 = max(res[i][j] for j in range(n_classes) if j != majority)
-            if top_1 == bags:
-                p_a = np.power(alpha / n_classes, 1.0 / bags)
-                p_b = 1 - p_a
-            else:
-                p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p >= p_a
-                p_b = beta.ppf(1 - alpha / n_classes, top_2 + 1, bags - top_2)  # p' <= p_b
-            if n_classes == 2:
-                p_a = max(p_a, 1 - p_b)
-            p_b = min(p_b, 1 - p_a)
-
+            p_a, p_b = get_pa_pb(top_1, top_2, bags, alpha, n_classes)
             if majority == res[i][-1]:
                 ret[i] = 1
             else:
@@ -128,6 +107,19 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
     return ret
 
 
+def get_pa_pb(top_1, top_2, bags, alpha, n_classes):
+    if top_1 == bags:
+        p_a = np.power(alpha / n_classes, 1.0 / bags)
+        p_b = 1 - p_a
+    else:
+        p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p >= p_a
+        p_b = beta.ppf(1 - alpha / n_classes, top_2 + 1, bags - top_2)  # p' <= p_b
+    # p + p' <= 1 if n_classes == 2, else p + p' == 1
+    if n_classes == 2:
+        p_a = max(p_a, 1 - p_b)
+    p_b = min(p_b, 1 - p_a)
+    return p_a, p_b
+
 def precompute_binary(res, conf, bound_cal: BoundCalculator, parallel_num=None, parallel_id=None):
     # res.shape: (n_examples, n_classes + 1)
     ret = np.ones(res.shape[0])
@@ -139,22 +131,77 @@ def precompute_binary(res, conf, bound_cal: BoundCalculator, parallel_num=None, 
     if parallel_num is not None:
         tops = tops[parallel_id::parallel_num]
     pre_res = -1
+    cor_lb_top_1 = None
     with tqdm(total=len(tops)) as progress_bar:
         for top_1 in tops:
             top_2 = bags - top_1
-            if top_1 == bags:
-                p_a = np.power(alpha / n_classes, 1.0 / bags)
-                p_b = 1 - p_a
-            else:
-                p_a = beta.ppf(alpha / n_classes, top_1, bags - top_1 + 1)  # p >= p_a
-                p_b = beta.ppf(1 - alpha / n_classes, top_2 + 1, bags - top_2)  # p' <= p_b
-            p_a = max(p_a, 1 - p_b)
-            p_b = min(p_b, 1 - p_a)
-
+            p_a, p_b = get_pa_pb(top_1, top_2, bags, alpha, n_classes)
             pre_res = bound_cal.get_poisoned_ins_binary(top_1, top_2, p_a, bags, st=pre_res, parallel_num=parallel_num,
                                                         parallel_id=parallel_id)
             progress_bar.set_postfix({"ins": pre_res, "top_1": top_1})
             progress_bar.update(1)
+    # compute stats 
+    if parallel_num is not None:
+        return
+    cal_statistics(res)
+
+def precompute(res, conf, bound_cal: BoundCalculator, parallel_num=None, parallel_id=None):
+    # res.shape: (n_examples, n_classes + 1)
+    ret = np.ones(res.shape[0])
+    alpha = (1 - conf) / res.shape[0]
+    n_classes = res.shape[1] - 1
+    assert n_classes > 2
+    bags = np.sum(res[0][:-1])
+    tops = {}
+    for i in range(len(res)):
+        majority = np.argmax(res[i, :-1])
+        top_1 = res[i][majority]
+        if top_1 not in tops:
+            tops[top_1] = []
+        top_2 = max(res[i][j] for j in range(n_classes) if j != majority)
+        tops[top_1].append(top_2)
+
+    for top_1 in tops:
+        tops[top_1].sort(key=lambda x:-x)
+    tops_key = sorted(list(tops.keys()))
+
+    if parallel_num is not None:
+        tops_key = tops_key[parallel_id::parallel_num]
+    with tqdm(total=sum(len(tops[top_1]) for top_1 in tops_key)) as progress_bar:
+        for top_1 in tops_key:
+            pre_res = -1
+            for top_2 in tops[top_1]:
+                p_a, p_b = get_pa_pb(top_1, top_2, bags, alpha, n_classes)
+                pre_res = bound_cal.get_poisoned_ins(top_1, top_2, p_a, p_b, bags, parallel_num=parallel_num, parallel_id=parallel_id)
+                progress_bar.set_postfix({"ins": pre_res, "top_1": top_1, "top_2": top_2})
+                progress_bar.update(1)
+    # compute stats 
+    if parallel_num is not None:
+        return
+    cal_statistics(res)
+
+def cal_statistics(res):
+    cor_cnt = 0
+    auc = 0
+    radius = []
+    for i in range(len(res)):
+        majority = np.argmax(res[i, :-1])
+        top_1 = res[i][majority]
+        top_2 = max(res[i][j] for j in range(n_classes) if j != majority)
+        p_a, p_b = get_pa_pb(top_1, top_2, bags, alpha, n_classes)
+        if majority == res[i, -1]:
+            if p_a > p_b:
+                cor_cnt += 1
+                auc += bound_cal.pa_lb_cache[(bound_cal.s, top_1, top_2, bags)]
+                radius.append(bound_cal.pa_lb_cache[(bound_cal.s, top_1, top_2, bags)])
+            else:
+                radius.append(0)
+        else:
+            radius.append(0)
+
+    radius.sort()
+    mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
+    print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
 
 
 if __name__ == "__main__":
@@ -285,6 +332,10 @@ if __name__ == "__main__":
         if res.shape[1] - 1 == 2:  # n_classes == 2
             precompute_binary(res, args.confidence, bound_cal, parallel_num=args.parallel_precompute,
                               parallel_id=args.parallel_precompute_id)
+        else:
+            precompute(res, args.confidence, bound_cal, parallel_num=args.parallel_precompute,
+                              parallel_id=args.parallel_precompute_id)
+
         for poison_ins_num in poisoned_ins_num_range:
             if poison_ins_num in cache:
                 ret = cache[poison_ins_num]

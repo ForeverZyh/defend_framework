@@ -255,8 +255,6 @@ class MNIST17DataPreprocessor(DataPreprocessor):
         if args.noise_strategy in ["feature_flipping", "all_flipping"]:
             self.x_train = self.x_train >= 0.5
             self.x_test = self.x_test >= 0.5
-        if args.noise_strategy in ["label_flipping", "all_flipping"]:
-            pass
 
         self.data_processor = self.build_processor(self.x_train, self.y_train, args)
         print('x_train shape:', x_train.shape, self.y_train.shape)
@@ -287,8 +285,6 @@ class MNISTDataPreprocessor(DataPreprocessor):
         if args.noise_strategy in ["feature_flipping", "all_flipping"]:
             self.x_train = np.minimum(np.floor(self.x_train * (args.K + 1)) / args.K, 1)
             self.x_test = np.minimum(np.floor(self.x_test * (args.K + 1)) / args.K, 1)
-        if args.noise_strategy in ["label_flipping", "all_flipping"]:
-            pass
 
         self.data_processor = self.build_processor(self.x_train, self.y_train, args)
         print('x_train shape:', x_train.shape, self.y_train.shape)

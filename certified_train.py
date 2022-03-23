@@ -24,6 +24,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=1e-3, help="learning rate")
     parser.add_argument("--gpu_id", type=str, default="0", help="gpu id for training")
     parser.add_argument("--data_aug", action='store_true', help="whether to use data augmentation")
+    parser.add_argument("--no_eval_noise", action='store_true', help="whether not to evaluate on noise test data")
 
     # poisoning defence parameters
     parser.add_argument('--k', action='store', default=None, type=int,
