@@ -121,8 +121,8 @@ class BoundCalculator(ABC):
         ret = -1
         for key in self.stats_cache:
             if isinstance(key, tuple) and len(key) == 4:
-                _, top_1_, top_2_, N_ = key
-                if top_1 >= top_1_ and top_2 <= top_2_ and N == N_:
+                s, top_1_, top_2_, N_ = key
+                if top_1 >= top_1_ and top_2 <= top_2_ and N == N_ and s == self.s:
                     ret = max(ret, self.stats_cache[key])
 
         return ret
@@ -204,9 +204,9 @@ class SelectBoundCalculator(BoundCalculator):
         self.cache_file = os.path.join("list_counts", dataset,
                                        f"cache_{str(IaIbK).replace('/', '__')}_{k}_{L}_{l}")
         try:
-            self.pa_lb_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
+            self.stats_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
         except:
-            np.save(self.cache_file, self.pa_lb_cache)
+            np.save(self.cache_file, self.stats_cache)
 
     def cal_NP_bound(self, remain_to_assign, p_binom, reverse=False, early_stop=None):
         """
@@ -287,9 +287,9 @@ class FlipBoundCalculator(BoundCalculator):
         self.cache_file = os.path.join("list_counts", dataset,
                                        f"cache_{str(Ia).replace('/', '__')}_{str(Ib).replace('/', '__')}_{K}_{k}_{d}")
         try:
-            self.pa_lb_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
+            self.stats_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
         except:
-            np.save(self.cache_file, self.pa_lb_cache)
+            np.save(self.cache_file, self.stats_cache)
 
         self.complete_cnt_p, self.complete_cnt_q = process_count(Ia, Ib, d, K, s)
 
