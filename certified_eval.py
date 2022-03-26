@@ -143,7 +143,7 @@ def precompute_binary(res, conf, bound_cal: BoundCalculator, parallel_num=None, 
     # compute stats 
     if parallel_num is not None:
         return
-    cal_statistics(res)
+    cal_statistics(res, bags, alpha, n_classes)
 
 def precompute(res, conf, bound_cal: BoundCalculator, parallel_num=None, parallel_id=None):
     # res.shape: (n_examples, n_classes + 1)
@@ -178,9 +178,9 @@ def precompute(res, conf, bound_cal: BoundCalculator, parallel_num=None, paralle
     # compute stats 
     if parallel_num is not None:
         return
-    cal_statistics(res)
+    cal_statistics(res, bags, alpha, n_classes)
 
-def cal_statistics(res):
+def cal_statistics(res, bags, alpha, n_classes):
     cor_cnt = 0
     auc = 0
     radius = []

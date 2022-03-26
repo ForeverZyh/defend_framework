@@ -10,6 +10,7 @@ class Model(ABC):
         self.input_shape = input_shape
         self.n_classes = n_classes
         self.lr = lr
+        self.callback = None
         self.model = self.build_model()
         self.weights_initialize = self.model.get_weights()
 
@@ -31,7 +32,10 @@ class Model(ABC):
         self.model.fit_generator(datagen, epochs=epochs, verbose=0, workers=4)
 
     def fit(self, X, y, batch_size, epochs):
-        self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4)
+        if self.callback is None:
+            self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4)
+        else:
+            self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4, callbacks=[self.callback])
 
     def evaluate(self, x_test, y_test):
         score = self.model.evaluate(x_test, y_test, verbose=0, batch_size=512)

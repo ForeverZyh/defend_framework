@@ -92,6 +92,7 @@ class BoundCalculator(ABC):
             self.pa_lb_cache[(self.s, top_1, top_2, N)] = -1
             self.sync_cache(parallel_num, parallel_id)
             return -1
+        st = self.cal_st(top_1, top_2, N)
         if st == -1 and not self.check_radius_binary(0, p_a):
             ret = -1
         else:
