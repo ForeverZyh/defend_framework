@@ -11,7 +11,7 @@ from utils.preprocessing_counts import process_count
 
 class BoundCalculator(ABC):
     def __init__(self):
-        self.pa_lb_cache = dict()
+        self.stats_cache = dict()
         self.cache_file = None
         self.k = None
         self.D = None
@@ -68,11 +68,11 @@ class BoundCalculator(ABC):
         return self.check_NP(Fraction(pa), Fraction(pb), p_binom)
 
     def get_pa_lb_binary(self, poisoned_ins_num):
-        if (poisoned_ins_num, self.s) in self.pa_lb_cache:
-            return self.pa_lb_cache[(poisoned_ins_num, self.s)]
+        if (poisoned_ins_num, self.s) in self.stats_cache:
+            return self.stats_cache[(poisoned_ins_num, self.s)]
         l_pa = Fraction(1, 2)
         r_pa = Fraction(1)
-        for i in range(25):  # about 1e-8
+        for i in range(10):  # about 1e-4
             mid = (l_pa + r_pa) / 2
             if self.check_radius_binary(poisoned_ins_num, mid):
                 r_pa = mid
@@ -80,16 +80,16 @@ class BoundCalculator(ABC):
                 l_pa = mid
             print(float(r_pa))
 
-        self.pa_lb_cache[(poisoned_ins_num, self.s)] = r_pa
-        np.save(self.cache_file, self.pa_lb_cache)
+        self.stats_cache[(poisoned_ins_num, self.s)] = r_pa
+        np.save(self.cache_file, self.stats_cache)
         return r_pa
 
-    def get_poisoned_ins_binary(self, top_1, top_2, p_a, N, st=-1, parallel_num=None, parallel_id=None):
+    def get_poisoned_ins_binary(self, top_1, top_2, p_a, N, parallel_num=None, parallel_id=None):
         # binary search O(2log(ans))
-        if (self.s, top_1, top_2, N) in self.pa_lb_cache:
-            return self.pa_lb_cache[(self.s, top_1, top_2, N)]
+        if (self.s, top_1, top_2, N) in self.stats_cache:
+            return self.stats_cache[(self.s, top_1, top_2, N)]
         if p_a <= Fraction(1, 2):
-            self.pa_lb_cache[(self.s, top_1, top_2, N)] = -1
+            self.stats_cache[(self.s, top_1, top_2, N)] = -1
             self.sync_cache(parallel_num, parallel_id)
             return -1
         st = self.cal_st(top_1, top_2, N)
@@ -113,26 +113,26 @@ class BoundCalculator(ABC):
                         ans += 2 ** l
                 ret = ans
 
-        self.pa_lb_cache[(self.s, top_1, top_2, N)] = ret
+        self.stats_cache[(self.s, top_1, top_2, N)] = ret
         self.sync_cache(parallel_num, parallel_id)
         return ret
 
     def cal_st(self, top_1, top_2, N):
         ret = -1
-        for key in self.pa_lb_cache:
+        for key in self.stats_cache:
             if isinstance(key, tuple) and len(key) == 4:
                 _, top_1_, top_2_, N_ = key
                 if top_1 >= top_1_ and top_2 <= top_2_ and N == N_:
-                    ret = max(ret, self.pa_lb_cache[key])
+                    ret = max(ret, self.stats_cache[key])
 
         return ret
 
     def get_poisoned_ins(self, top_1, top_2, p_a, p_b, N, parallel_num=None, parallel_id=None):
         # binary search O(2log(ans))
-        if (self.s, top_1, top_2, N) in self.pa_lb_cache:
-            return self.pa_lb_cache[(self.s, top_1, top_2, N)]
+        if (self.s, top_1, top_2, N) in self.stats_cache:
+            return self.stats_cache[(self.s, top_1, top_2, N)]
         if p_a <= p_b:
-            self.pa_lb_cache[(self.s, top_1, top_2, N)] = -1
+            self.stats_cache[(self.s, top_1, top_2, N)] = -1
             self.sync_cache(parallel_num, parallel_id)
             return -1
         st = self.cal_st(top_1, top_2, N)
@@ -156,10 +156,9 @@ class BoundCalculator(ABC):
                         ans += 2 ** l
                 ret = ans
 
-        self.pa_lb_cache[(self.s, top_1, top_2, N)] = ret
+        self.stats_cache[(self.s, top_1, top_2, N)] = ret
         self.sync_cache(parallel_num, parallel_id)
         return ret
-
 
     def sync_cache(self, parallel_num, parallel_id):
         """
@@ -181,8 +180,8 @@ class BoundCalculator(ABC):
 
         tmp = np.load(self.cache_file + ".npy", allow_pickle=True).item()
 
-        self.pa_lb_cache.update(tmp)
-        np.save(self.cache_file, self.pa_lb_cache)
+        self.stats_cache.update(tmp)
+        np.save(self.cache_file, self.stats_cache)
 
 
 class SelectBoundCalculator(BoundCalculator):
