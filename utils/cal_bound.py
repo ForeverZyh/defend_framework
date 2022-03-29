@@ -122,7 +122,7 @@ class BoundCalculator(ABC):
         for key in self.stats_cache:
             if isinstance(key, tuple) and len(key) == 4:
                 s, top_1_, top_2_, N_ = key
-                if top_1 >= top_1_ and top_2 <= top_2_ and N == N_ and s <= self.s:
+                if top_1 >= top_1_ and top_2 <= top_2_ and N == N_ and s >= self.s:
                     ret = max(ret, self.stats_cache[key])
 
         return ret
