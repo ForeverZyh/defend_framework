@@ -122,7 +122,7 @@ class BoundCalculator(ABC):
         for key in self.stats_cache:
             if isinstance(key, tuple) and len(key) == 4:
                 s, top_1_, top_2_, N_ = key
-                if top_1 >= top_1_ and top_2 <= top_2_ and N == N_ and s == self.s:
+                if top_1 >= top_1_ and top_2 <= top_2_ and N == N_ and s <= self.s:
                     ret = max(ret, self.stats_cache[key])
 
         return ret
@@ -178,7 +178,10 @@ class BoundCalculator(ABC):
                 time_sec_int += parallel_num
                 time.sleep(time_sec_int - time_sec_float + 0.5)
 
-        tmp = np.load(self.cache_file + ".npy", allow_pickle=True).item()
+        try:
+            tmp = np.load(self.cache_file + ".npy", allow_pickle=True).item()
+        except:
+            return
 
         self.stats_cache.update(tmp)
         np.save(self.cache_file, self.stats_cache)
