@@ -59,4 +59,4 @@ if __name__ == "__main__":
     ax.set(xlim=(0, x_max), ylim=(0, 100))
     ax.legend()
     plt.show()
-    plt.savefig(f"./res/{args.save_file_name}.pdf")
+    plt.savefig(f"./{args.load_dir}/{args.save_file_name}.pdf")
