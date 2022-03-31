@@ -254,6 +254,7 @@ if __name__ == "__main__":
                         )
     parser.add_argument("--precompute_only", action='store_true', help="only to compute the stats not drawing")
     parser.add_argument("--draw_only", action='store_true', help="only to draw not precomputing the stats")
+    parser.add_argument("--eval_noise", action='store_true', help="evaluate on noise prediction (backdoor attacks)")
 
     args = parser.parse_args()
     with open(os.path.join(args.load_dir, "commandline_args.txt"), 'r') as f:
@@ -274,7 +275,11 @@ if __name__ == "__main__":
             exit(0)
     else:
         cache = dict()
-    res, res_noise = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
+    if not args.eval_noise:
+        res, _ = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
+    else:
+        _, res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
+
     if args.dataset == "mnist17":
         args.D = 13007
         if args.noise_strategy is not None:
@@ -345,7 +350,7 @@ if __name__ == "__main__":
         if args.dataset in ["mnist", "mnist17", "ember"]:
             Ia = Fraction(int(args.alpha * 100), 100)
             bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k,
-                                            args.poisoned_feat_num)
+                                            args.poisoned_feat_num, args.eval_noise)
         elif args.dataset == "imdb":
             if args.noise_strategy == "sentence_select":
                 bound_cal = SelectBoundCalculator(None, args.dataset, args.D, args.L, args.k, args.l,

@@ -8,7 +8,7 @@ import numpy as np
 import tensorflow as tf
 
 from utils.data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor, \
-    EmberDataPreProcessor, EMBER_DATASET
+    EmberDataPreProcessor, EMBER_DATASET, EmberPoisonDataPreProcessor
 from models import MNIST17Model, MNISTModel, IMDBTransformerModel, EmberModel
 from utils.train_utils import train_many
 
@@ -131,8 +131,7 @@ if __name__ == "__main__":
         model = IMDBTransformerModel.IMDBTransformerModel(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     elif args.dataset in EMBER_DATASET:
         if args.load_poison_dir is not None:
-            raise NotImplementedError  # todo: load data from file
-            # data_loader = EmberDataPreProcessor.load(os.path.join(args.load_poison_dir, "data"), args)
+            data_loader = EmberPoisonDataPreProcessor(args)
         else:
             data_loader = EmberDataPreProcessor(args)
         model = EmberModel.EmberModel(data_loader.n_features, data_loader.n_classes, lr=args.lr)

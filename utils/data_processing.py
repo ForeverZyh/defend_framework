@@ -344,3 +344,22 @@ class EmberDataPreProcessor(DataPreprocessor):
         print('x_train shape:', self.x_train.shape, self.y_train.shape)
         print(self.x_train.shape[0], 'train samples')
         print(self.x_test.shape[0], 'test samples')
+
+
+class EmberPoisonDataPreProcessor(DataPreprocessor):
+    def __init__(self, args):
+        super(EmberPoisonDataPreProcessor, self).__init__()
+        self.x_train = np.load(os.path.join(args.load_poison_dir, "watermarked_X.npy"))
+        self.y_train = np.load(os.path.join(args.load_poison_dir, "watermarked_y.npy"))
+        self.x_test = np.load(os.path.join(args.load_poison_dir, "watermarked_X_test.npy"))
+        self.y_test = np.ones(self.x_test.shape[0])
+        if args.K != 1 and args.noise_strategy in ["all_flipping", "label_flipping"]:
+            raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor with all_flipping.")
+
+        self.n_features = self.x_train.shape[1]
+        self.n_classes = 2
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', self.x_train.shape, self.y_train.shape)
+        print(self.x_train.shape[0], 'train samples')
+        print(self.x_test.shape[0], 'test samples')

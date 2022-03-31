@@ -273,13 +273,14 @@ class SelectBoundCalculator(BoundCalculator):
 
 
 class FlipBoundCalculator(BoundCalculator):
-    def __init__(self, Ia, Ib, dataset, D, d, K, k, s):
+    def __init__(self, Ia, Ib, dataset, D, d, K, k, s, is_noise):
         super(FlipBoundCalculator, self).__init__()
         self.Ia = Ia
         self.Ib = Ib
         self.K = K
         self.k = k
         self.s = s
+        self.is_noise = is_noise
 
         self.fn = dataset
         if not os.path.exists(os.path.join("list_counts", dataset)):
@@ -289,6 +290,8 @@ class FlipBoundCalculator(BoundCalculator):
         self.d = d
         self.cache_file = os.path.join("list_counts", dataset,
                                        f"cache_{str(Ia).replace('/', '__')}_{str(Ib).replace('/', '__')}_{K}_{k}_{d}")
+        if self.is_noise:
+            self.cache_file += "_True"
         try:
             self.stats_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
         except:
@@ -306,11 +309,11 @@ class FlipBoundCalculator(BoundCalculator):
             self.complete_cnt_ps = [[1], self.complete_cnt_p]
             self.complete_cnt_qs = [[1], self.complete_cnt_q]
 
-        if len(self.complete_cnt_qs) <= k:
+        if len(self.complete_cnt_qs) <= k + int(self.is_noise):
             print("preparing " + run_name)
             # compute convolutions
             resume_round = len(self.complete_cnt_qs)
-            for i in trange(resume_round, k + 1):
+            for i in trange(resume_round, k + 1 + int(self.is_noise)):
                 self.complete_cnt_ps.append([0] * (i * d * 2 + 1))
                 self.complete_cnt_qs.append([0] * (i * d * 2 + 1))
                 for j in range(d * 2 + 1):
@@ -343,15 +346,17 @@ class FlipBoundCalculator(BoundCalculator):
         achieved = 0
 
         if not reverse:
-            _range = range(-k * d, k * d + 1)
+            _range = range(-(k + int(self.is_noise)) * d, (k + int(self.is_noise)) * d + 1)
         else:
-            _range = range(k * d, -k * d - 1, -1)
+            _range = range((k + int(self.is_noise)) * d, -(k + int(self.is_noise)) * d - 1, -1)
 
         for m_n_delta in _range:
             outcome = []
             for i in range(k + 1):
-                if -i * d <= m_n_delta <= i * d:
-                    outcome.append([complete_cnt_ps[i][m_n_delta + i * d], complete_cnt_qs[i][m_n_delta + i * d], i])
+                if -(i + int(self.is_noise)) * d <= m_n_delta <= (i + int(self.is_noise)) * d:
+                    outcome.append([complete_cnt_ps[i + int(self.is_noise)][m_n_delta + (i + int(self.is_noise)) * d],
+                                    complete_cnt_qs[i + int(self.is_noise)][m_n_delta + (i + int(self.is_noise)) * d],
+                                    i])  # the likelihood is still i not (i + int(self.is_noise))
 
             for i in range(len(outcome)):
                 p_cnt, q_cnt, poison_cnt = outcome[i]
