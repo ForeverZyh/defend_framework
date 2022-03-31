@@ -300,7 +300,7 @@ class FlipBoundCalculator(BoundCalculator):
         self.complete_cnt_p, self.complete_cnt_q = process_count(Ia, Ib, d, K, s)
 
         run_name = f'conv_count_{s}_{K}_{str(Ia).replace("/", "__")}_{str(Ib).replace("/", "__")}_{d}'
-        filename = os.path.join("list_counts", self.fn, f'{run_name}.npz')
+        filename = os.path.join("/nobackup/yuhao_data/list_counts", self.fn, f'{run_name}.npz')
         if os.path.exists(filename):
             npzfile = np.load(filename, allow_pickle=True)
             self.complete_cnt_ps, self.complete_cnt_qs = list(npzfile["complete_cnt_ps"]), list(
