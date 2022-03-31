@@ -45,7 +45,7 @@ class BoundCalculator(ABC):
         for i in range(self.k + 1):
             p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
                     (1 - Fraction(x, self.D)) ** (self.k - i))
-        if pa - (1 - p_binom[0]) > Fraction(1, 2):
+        if pa - (1 - p_binom[0]) > Fraction(1, 2) and not self.is_noise:
             return True
 
         return self.check_NP_binary(Fraction(pa), p_binom)
@@ -62,7 +62,7 @@ class BoundCalculator(ABC):
         for i in range(self.k + 1):
             p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
                     (1 - Fraction(x, self.D)) ** (self.k - i))
-        if pa - (1 - p_binom[0]) > pb + (1 - p_binom[0]):
+        if pa - (1 - p_binom[0]) > pb + (1 - p_binom[0]) and not self.is_noise:
             return True
 
         return self.check_NP(Fraction(pa), Fraction(pb), p_binom)
