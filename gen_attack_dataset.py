@@ -1,4 +1,3 @@
-import argparse
 import random
 import os
 import json
@@ -6,62 +5,35 @@ import time
 
 import numpy as np
 import tensorflow as tf
-import keras
+from tensorflow import keras
 
-from utils.data_processing import MNISTDataPreprocessor, MNIST17DataPreprocessor
+from utils.data_processing import MNISTDataPreprocessor, MNIST17DataPreprocessor, MNIST01DataPreprocessor
 from models.MNISTModel import MNISTModel
 from models.MNIST17Model import MNIST17Model
+from models.MNIST01Model import MNIST01Model
 from utils.train_utils import train_single
-from attack.BadNetAttack import BadNetAttack
+from attack.BadNetAttack import BadNetAttackLabel, BadNetAttackNoLabel
+from utils.cert_train_argments import get_arguments
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-
-    # general training parameters
-    parser.add_argument("-d", "--dataset", choices=["ember", "mnist", "mnist17"],
-                        help="dataset type", required=True)
-    parser.add_argument("--seed", type=int, default=42, help="random seed")
-    parser.add_argument("--epochs", type=int, default=200, help="training epochs")
-    parser.add_argument("--batch_size", type=int, default=16, help="batch size")
-    parser.add_argument("--gpu_id", type=str, default="0", help="gpu id for training")
-    parser.add_argument("--data_aug", action='store_true', help="whether to use data augmentation")
-
+    parser = get_arguments()
     # attack parameters
     parser.add_argument("--attack", choices=["badnet"], help="attack algorithms", required=True)
     parser.add_argument("--consecutive", action="store_true",
                         help="Whether the poisoned features need to be inside a block")
+    parser.add_argument("--attack_label", action="store_true",
+                        help="Whether to attack the label of the training image")
     parser.add_argument("--poisoned_feat_num", type=int, required=True, help="poisoned feature number")
     parser.add_argument("--poisoned_ins_rate", default=0.1, type=float, help="the rate of instances to be poisoned")
     parser.add_argument("--attack_targets", type=str,
                         help="A list of ints of length n_classes, attacking label i to its target attack_targets[i], "
                              "attack_targets[i] can be None.")
 
-    # poisoning defence parameters
-    parser.add_argument('--k', action='store', default=None, type=int,
-                        help='number of (expected) examples in a bag')
-    parser.add_argument("--select_strategy", default=None,
-                        choices=["bagging_replace", "bagging_wo_replace", "binomial"],
-                        help="selection strategy")
-    parser.add_argument("--noise_strategy", default=None,
-                        choices=["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian", "RAB_uniform"],
-                        help="noise strategy")
-    parser.add_argument('--K', action='store', default=2, type=int,
-                        help='number of bins for discretization')
-    parser.add_argument('--alpha', action='store', default=0.8, type=float,
-                        help='probability of the feature remains its original value')
-    parser.add_argument('--sigma', action='store', default=1, type=float,
-                        help='sigma for Gaussian noise')
-    parser.add_argument('--a', action='store', default=0, type=float,
-                        help='low for uniform noise')
-    parser.add_argument('--b', action='store', default=1, type=float,
-                        help='high for uniform noise')
-
     # dirs and files
     parser.add_argument("--save_poison_dir", type=str,
                         help="dir for save poisoned dataset"
                         )
     parser.add_argument("--load", action="store_true", help="whether to load the saved file")
-    parser.add_argument("--exp_name", default=None, type=str, help="name for this experiment")
 
     # Set random seeds
     args = parser.parse_args()
@@ -79,10 +51,9 @@ if __name__ == "__main__":
             # Memory growth must be set before GPUs have been initialized
             print(e)
 
-
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    tf.random.set_seed(args.seed)
+    # random.seed(args.seed)
+    # np.random.seed(args.seed)
+    # tf.random.set_seed(args.seed)
 
     # make dirs
     if not os.path.exists(args.save_poison_dir):
@@ -108,6 +79,9 @@ if __name__ == "__main__":
     elif args.dataset == "mnist17":
         DataPreprocessor_type = MNIST17DataPreprocessor
         Model_type = MNIST17Model
+    elif args.dataset == "mnist01":
+        DataPreprocessor_type = MNIST01DataPreprocessor
+        Model_type = MNIST01Model
     else:
         raise NotImplementedError
 
@@ -116,12 +90,16 @@ if __name__ == "__main__":
     attack_targets = eval(args.attack_targets)
     if not args.load:
         data_loader = DataPreprocessor_type(args)
-        attack = BadNetAttack(data_loader, attack_targets, args.poisoned_feat_num,
-                              consecutive=args.consecutive, poisoned_ins_rate=args.poisoned_ins_rate)
+        if args.attack_label:
+            attack = BadNetAttackLabel(data_loader, attack_targets, args.poisoned_feat_num,
+                                       consecutive=args.consecutive, poisoned_ins_rate=args.poisoned_ins_rate)
+        else:
+            attack = BadNetAttackNoLabel(data_loader, attack_targets, args.poisoned_feat_num,
+                                         consecutive=args.consecutive, poisoned_ins_rate=args.poisoned_ins_rate)
         attack.attack()
         attack.save(os.path.join(filepath, "data"))
     else:
-        attack = BadNetAttack.load(os.path.join(filepath, "data"))
+        attack = BadNetAttackLabel.load(os.path.join(filepath, "data"))
         data_loader = attack.data_processor
 
     model = Model_type(data_loader.n_features, data_loader.n_classes)
