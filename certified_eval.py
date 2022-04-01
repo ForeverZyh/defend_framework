@@ -92,7 +92,7 @@ def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poison
                 ret[i] = -1
             ori = ret[i]
             if (poisoned_feat_num, top_1, top_2, bags) in bound_cal.stats_cache:
-                if bound_cal.stats_cache[(poisoned_feat_num, top_1, top_2, bags)] <= poisoned_ins_num:
+                if bound_cal.stats_cache[(poisoned_feat_num, top_1, top_2, bags)] < poisoned_ins_num:
                     ret[i] = 0
             else:
                 if n_classes == 2:
