@@ -7,7 +7,8 @@ import numpy as np
 import tensorflow as tf
 
 from utils.data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor, \
-    EmberDataPreProcessor, EMBER_DATASET, EmberPoisonDataPreProcessor, MNIST01DataPreprocessor
+    EmberDataPreProcessor, EMBER_DATASET, EmberPoisonDataPreProcessor, MNIST01DataPreprocessor, \
+    MNIST17LimitedDataPreprocessor
 from models import MNIST17Model, MNISTModel, IMDBTransformerModel, EmberModel, MNIST01Model
 from utils.train_utils import train_many
 from utils.cert_train_argments import get_arguments
@@ -65,6 +66,12 @@ if __name__ == "__main__":
             data_loader = MNIST17DataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = MNIST17DataPreprocessor(args)
+        model = MNIST17Model.MNIST17Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
+    elif args.dataset == "mnist17_limited":
+        if args.load_poison_dir is not None:
+            data_loader = MNIST17LimitedDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
+        else:
+            data_loader = MNIST17LimitedDataPreprocessor(args)
         model = MNIST17Model.MNIST17Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     elif args.dataset == "mnist01":
         if args.load_poison_dir is not None:

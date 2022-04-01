@@ -8,6 +8,7 @@ from scipy.stats import beta
 from tqdm import tqdm
 
 from utils.cal_bound import FlipBoundCalculator, SelectBoundCalculator, BoundCalculator
+from utils.data_processing import FEATURE_DATASET
 
 
 def output(x):
@@ -291,7 +292,28 @@ if __name__ == "__main__":
                 args.d = 1
             else:
                 raise NotImplementedError
-
+    elif args.dataset == "mnist17_limited":
+        args.D = 100
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 28 * 28
+            elif args.noise_strategy == "all_flipping":
+                args.d = 28 * 28 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
+    elif args.dataset == "mnist01":
+        args.D = 12665
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 28 * 28
+            elif args.noise_strategy == "all_flipping":
+                args.d = 28 * 28 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
     elif args.dataset == "mnist":
         args.D = 60000
         if args.noise_strategy is not None:
@@ -347,7 +369,7 @@ if __name__ == "__main__":
             # output(ret)
     elif args.select_strategy == "bagging_replace" and args.noise_strategy in ["feature_flipping", "label_flipping",
                                                                                "all_flipping", "sentence_select"]:
-        if args.dataset in ["mnist", "mnist17", "ember"]:
+        if args.dataset in FEATURE_DATASET:
             Ia = Fraction(int(args.alpha * 100), 100)
             bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k,
                                             args.poisoned_feat_num, args.eval_noise)

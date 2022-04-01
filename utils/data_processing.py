@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 from utils.ember_feature_utils import load_features
 
 EMBER_DATASET = ["ember", "ember_limited"]
-FEATURE_DATASET = ["mnist", "mnist17", "mnist01"] + EMBER_DATASET
+FEATURE_DATASET = ["mnist", "mnist17", "mnist01", "mnist17_limited"] + EMBER_DATASET
 LANGUAGE_DATASET = ["imdb"]
 
 
@@ -262,6 +262,48 @@ class MNIST17DataPreprocessor(DataPreprocessor):
         print(x_test.shape[0], 'test samples')
 
 
+class MNIST17LimitedDataPreprocessor(DataPreprocessor):
+    def __init__(self, args):
+        super(MNIST17LimitedDataPreprocessor, self).__init__()
+        # input image dimensions
+        img_rows, img_cols = 28, 28
+
+        self.n_classes = 2
+        self.n_features = (img_rows, img_cols, 1)
+
+        (x_train, self.y_train), (x_test, self.y_test) = mnist.load_data()
+        x_train = x_train[(self.y_train == 1) | (self.y_train == 7)]
+        self.y_train = self.y_train[(self.y_train == 1) | (self.y_train == 7)]
+        self.y_train = self.y_train > 1
+        x_test = x_test[(self.y_test == 1) | (self.y_test == 7)]
+        self.y_test = self.y_test[(self.y_test == 1) | (self.y_test == 7)]
+        self.y_test = self.y_test > 1
+
+        x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
+        x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
+
+        x_train = x_train.astype('float32')
+        x_test = x_test.astype('float32')
+        self.x_train = x_train / 255
+        self.x_test = x_test / 255
+        if args.K != 1 and args.noise_strategy in ["label_flipping", "all_flipping"]:
+            raise NotImplementedError("K != 1 not implemented for MNIST17DataPreprocessor.")
+        if args.noise_strategy in ["feature_flipping", "all_flipping"]:
+            self.x_train = self.x_train >= 0.5
+            self.x_test = self.x_test >= 0.5
+        train_ids = np.random.choice(np.arange(x_train.shape[0]), 100, replace=False)
+        test_ids = np.random.choice(np.arange(x_train.shape[0]), 1000, replace=False)
+        self.x_train = self.x_train[train_ids]
+        self.y_train = self.y_train[train_ids]
+        self.x_test = self.x_test[test_ids]
+        self.y_test = self.y_test[test_ids]
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', self.x_train.shape, self.y_train.shape)
+        print(self.x_train.shape[0], 'train samples')
+        print(self.x_test.shape[0], 'test samples')
+
+
 class MNIST01DataPreprocessor(DataPreprocessor):
     def __init__(self, args):
         super(MNIST01DataPreprocessor, self).__init__()
@@ -275,8 +317,8 @@ class MNIST01DataPreprocessor(DataPreprocessor):
         x_train = x_train[(self.y_train == 0) | (self.y_train == 1)]
         self.y_train = self.y_train[(self.y_train == 0) | (self.y_train == 1)]
         self.y_train = self.y_train > 0
-        x_test = x_test[(self.y_train == 0) | (self.y_train == 1)]
-        self.y_test = self.y_test[(self.y_train == 0) | (self.y_train == 1)]
+        x_test = x_test[(self.y_test == 0) | (self.y_test == 1)]
+        self.y_test = self.y_test[(self.y_test == 0) | (self.y_test == 1)]
         self.y_test = self.y_test > 0
 
         x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)

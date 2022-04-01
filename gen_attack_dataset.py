@@ -99,7 +99,10 @@ if __name__ == "__main__":
         attack.attack()
         attack.save(os.path.join(filepath, "data"))
     else:
-        attack = BadNetAttackLabel.load(os.path.join(filepath, "data"))
+        if args.attack_label:
+            attack = BadNetAttackLabel.load(os.path.join(filepath, "data"))
+        else:
+            attack = BadNetAttackNoLabel.load(os.path.join(filepath, "data"))
         data_loader = attack.data_processor
 
     model = Model_type(data_loader.n_features, data_loader.n_classes)
