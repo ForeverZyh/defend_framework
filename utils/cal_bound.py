@@ -72,7 +72,7 @@ class BoundCalculator(ABC):
             return self.stats_cache[(poisoned_ins_num, self.s)]
         l_pa = Fraction(1, 2)
         r_pa = Fraction(1)
-        for i in range(10):  # about 1e-4
+        for i in range(13):  # about 1e-4
             mid = (l_pa + r_pa) / 2
             if self.check_radius_binary(poisoned_ins_num, mid):
                 r_pa = mid
