@@ -247,6 +247,9 @@ if __name__ == "__main__":
     parser.add_argument("--poisoned_ins_num_step", default=1, type=int,
                         help="the step of the poisoned instance number."
                         )
+    parser.add_argument("--k_upperbound", default=np.inf, type=int,
+                        help="the upper bound of k used to control the computation efficiency."
+                        )
     parser.add_argument("--parallel_precompute", default=None, type=int,
                         help="the number of manual split for the parallel. None for not parallel"
                         )
@@ -372,7 +375,7 @@ if __name__ == "__main__":
         if args.dataset in FEATURE_DATASET:
             Ia = Fraction(int(args.alpha * 100), 100)
             bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k,
-                                            args.poisoned_feat_num, args.eval_noise)
+                                            args.poisoned_feat_num, args.eval_noise, args.k_upperbound)
         elif args.dataset == "imdb":
             if args.noise_strategy == "sentence_select":
                 bound_cal = SelectBoundCalculator(None, args.dataset, args.D, args.L, args.k, args.l,

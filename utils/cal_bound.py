@@ -5,6 +5,7 @@ import numpy as np
 from scipy.special import comb
 from tqdm import trange
 import time
+import warnings
 
 from utils.preprocessing_counts import process_count
 
@@ -16,6 +17,8 @@ class BoundCalculator(ABC):
         self.k = None
         self.D = None
         self.s = None
+        self.k_ub = None
+        self.is_noise = False
 
     @abstractmethod
     def cal_NP_bound(self, remain_to_assign, p_binom, reverse=False, early_stop=None):
@@ -41,14 +44,22 @@ class BoundCalculator(ABC):
         :param pa: the lower bound of the probability of the most likely label
         :return: bool, whether it is certifiable
         """
+        pa = Fraction(pa)
+        no_control_proba_mass = Fraction(0)
         p_binom = [None] * (self.k + 1)
         for i in range(self.k + 1):
             p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
                     (1 - Fraction(x, self.D)) ** (self.k - i))
+            if i > self.k_ub:
+                no_control_proba_mass += p_binom[i]
+
+        if no_control_proba_mass > 1e-4:
+            warnings.warn(f"There is {float(no_control_proba_mass)} probability not controlled! x = {x}")
+        pa -= no_control_proba_mass
         if pa - (1 - p_binom[0]) > Fraction(1, 2) and not self.is_noise:
             return True
 
-        return self.check_NP_binary(Fraction(pa), p_binom)
+        return self.check_NP_binary(pa, p_binom)
 
     def check_radius(self, x, pa, pb):
         """
@@ -58,14 +69,24 @@ class BoundCalculator(ABC):
         :param pb: the upper bound of the probability of the second most likely label
         :return: bool, whether it is certifiable
         """
+        pa = Fraction(pa)
+        pb = Fraction(pb)
+        no_control_proba_mass = Fraction(0)
         p_binom = [None] * (self.k + 1)
         for i in range(self.k + 1):
             p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
                     (1 - Fraction(x, self.D)) ** (self.k - i))
+            if i > self.k_ub:
+                no_control_proba_mass += p_binom[i]
+
+        if no_control_proba_mass > 1e-4:
+            warnings.warn(f"There is {float(no_control_proba_mass)} probability not controlled! x = {x}")
+        pa -= no_control_proba_mass
+        pb += no_control_proba_mass
         if pa - (1 - p_binom[0]) > pb + (1 - p_binom[0]) and not self.is_noise:
             return True
 
-        return self.check_NP(Fraction(pa), Fraction(pb), p_binom)
+        return self.check_NP(pa, pb, p_binom)
 
     def get_pa_lb_binary(self, poisoned_ins_num):
         if (poisoned_ins_num, self.s) in self.stats_cache:
@@ -273,7 +294,7 @@ class SelectBoundCalculator(BoundCalculator):
 
 
 class FlipBoundCalculator(BoundCalculator):
-    def __init__(self, Ia, Ib, dataset, D, d, K, k, s, is_noise):
+    def __init__(self, Ia, Ib, dataset, D, d, K, k, s, is_noise, k_ub):
         super(FlipBoundCalculator, self).__init__()
         self.Ia = Ia
         self.Ib = Ib
@@ -281,6 +302,7 @@ class FlipBoundCalculator(BoundCalculator):
         self.k = k
         self.s = s
         self.is_noise = is_noise
+        self.k_ub = min(k, k_ub)
 
         self.fn = dataset
         if not os.path.exists(os.path.join("list_counts", dataset)):
@@ -289,7 +311,8 @@ class FlipBoundCalculator(BoundCalculator):
         self.D = D
         self.d = d
         self.cache_file = os.path.join("list_counts", dataset,
-                                       f"cache_{str(Ia).replace('/', '__')}_{str(Ib).replace('/', '__')}_{K}_{k}_{d}")
+                                       f"cache_{str(Ia).replace('/', '__')}_{str(Ib).replace('/', '__')}_{K}_"
+                                       f"{self.k_ub}_{d}")
         if self.is_noise:
             self.cache_file += "_True"
         try:
@@ -309,11 +332,11 @@ class FlipBoundCalculator(BoundCalculator):
             self.complete_cnt_ps = [[1], self.complete_cnt_p]
             self.complete_cnt_qs = [[1], self.complete_cnt_q]
 
-        if len(self.complete_cnt_qs) <= k + int(self.is_noise):
+        if len(self.complete_cnt_qs) <= self.k_ub + int(self.is_noise):
             print("preparing " + run_name)
             # compute convolutions
             resume_round = len(self.complete_cnt_qs)
-            for i in trange(resume_round, k + 1 + int(self.is_noise)):
+            for i in trange(resume_round, self.k_ub + 1 + int(self.is_noise)):
                 self.complete_cnt_ps.append([0] * (i * d * 2 + 1))
                 self.complete_cnt_qs.append([0] * (i * d * 2 + 1))
                 for j in range(d * 2 + 1):
@@ -340,7 +363,7 @@ class FlipBoundCalculator(BoundCalculator):
         we just return the current value
         :return: the lower bound (or upper bound if reverse is True)
         """
-        Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, self.k
+        Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, self.k_ub
         s = self.s
         complete_cnt_ps, complete_cnt_qs = self.complete_cnt_ps, self.complete_cnt_qs
         achieved = 0
