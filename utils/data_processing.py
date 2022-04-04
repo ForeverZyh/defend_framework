@@ -292,11 +292,11 @@ class MNIST17LimitedDataPreprocessor(DataPreprocessor):
             self.x_train = self.x_train >= 0.5
             self.x_test = self.x_test >= 0.5
         train_ids = np.random.choice(np.arange(x_train.shape[0]), 100, replace=False)
-        test_ids = np.random.choice(np.arange(x_test.shape[0]), 1000, replace=False)
+        #test_ids = np.random.choice(np.arange(x_test.shape[0]), 1000, replace=False)
         self.x_train = self.x_train[train_ids]
         self.y_train = self.y_train[train_ids]
-        self.x_test = self.x_test[test_ids]
-        self.y_test = self.y_test[test_ids]
+        #self.x_test = self.x_test[test_ids]
+        #self.y_test = self.y_test[test_ids]
 
         self.data_processor = self.build_processor(self.x_train, self.y_train, args)
         print('x_train shape:', self.x_train.shape, self.y_train.shape)
