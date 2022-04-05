@@ -49,6 +49,9 @@ class DataProcessor:
                 if noise_strategy in ["feature_flipping", "label_flipping", "all_flipping"]:
                     self.K = kwargs["K"]
                     self.alpha = kwargs["alpha"]
+                    self.test_alpha = kwargs["test_alpha"]
+                    if self.test_alpha is None:
+                        self.test_alpha = self.alpha
                     if noise_strategy in ["feature_flipping", "all_flipping"]:
                         if dataset in EMBER_DATASET:
                             self.kbin = KBinsDiscretizer(n_bins=self.K + 1, strategy='uniform', encode='ordinal')
@@ -154,7 +157,7 @@ class DataProcessor:
             if self.noise_strategy is not None:
                 if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                        mask = np.random.random(ret_X.shape[1:]) < self.alpha  # fix the noise for each example
+                        mask = np.random.random(ret_X.shape[1:]) < self.test_alpha  # fix the noise for each example
                         delta = np.random.randint(1, self.K + 1, ret_X.shape[1:]) / self.K
                         pre_ret_X = ret_X
                         ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
@@ -178,7 +181,7 @@ class DataProcessor:
             if self.noise_strategy is not None:
                 if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                        mask = np.random.random(ret_X.shape) < self.alpha
+                        mask = np.random.random(ret_X.shape) < self.test_alpha
                         delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
                         pre_ret_X = ret_X
                         ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
@@ -223,7 +226,8 @@ class DataPreprocessor:
     def build_processor(x_train, y_train, args):
         return DataProcessor(x_train, y_train, select_strategy=args.select_strategy, k=args.k,
                              noise_strategy=args.noise_strategy, K=args.K, alpha=args.alpha,
-                             sigma=args.sigma, a=args.a, b=args.b, dataset=args.dataset, l=args.l)
+                             sigma=args.sigma, a=args.a, b=args.b, dataset=args.dataset, l=args.l,
+                             test_alpha=args.test_alpha)
 
 
 class MNIST17DataPreprocessor(DataPreprocessor):

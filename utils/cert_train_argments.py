@@ -30,6 +30,8 @@ def get_arguments():
                         help='number of bins for discretization')
     parser.add_argument('--alpha', action='store', default=0.8, type=float,
                         help='probability of the feature remains its original value')
+    parser.add_argument('--test_alpha', action='store', default=None, type=float,
+                        help='if set, use this alpha for test time noise')
     parser.add_argument('--sigma', action='store', default=1, type=float,
                         help='sigma for Gaussian noise')
     parser.add_argument('--a', action='store', default=0, type=float,
