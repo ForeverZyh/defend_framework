@@ -8,11 +8,7 @@ import ember
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 
 from utils.ember_feature_utils import load_features
-
-EMBER_DATASET = ["ember", "ember_limited"]
-FEATURE_DATASET = ["mnist", "mnist17", "mnist01", "mnist17_limited"] + EMBER_DATASET
-LANGUAGE_DATASET = ["imdb"]
-
+from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET
 
 class DataProcessor:
     def __init__(self, X, y, select_strategy=None, k=None, noise_strategy=None, dataset=None, **kwargs):
