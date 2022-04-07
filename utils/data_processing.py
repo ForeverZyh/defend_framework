@@ -415,6 +415,8 @@ class CIFARDataPreprocessor(DataPreprocessor):
         self.n_features = (img_rows, img_cols, 3)
 
         (x_train, self.y_train), (x_test, self.y_test) = cifar10.load_data()
+        self.y_test = np.reshape(self.y_test, -1)
+        self.y_train = np.reshape(self.y_train, -1)
 
         x_train = x_train.astype('float32')
         x_test = x_test.astype('float32')

@@ -29,7 +29,10 @@ class Model(ABC):
         self.model = load_model(os.path.join(save_path, file_name + '.h5'))
 
     def fit_generator(self, datagen, epochs):
-        self.model.fit_generator(datagen, epochs=epochs, verbose=0, workers=4)
+        if self.callback is None:
+            self.model.fit_generator(datagen, epochs=epochs, verbose=0, workers=4)
+        else:
+            self.model.fit_generator(datagen, epochs=epochs, verbose=0, workers=4, callbacks=self.callback)
 
     def fit(self, X, y, batch_size, epochs):
         if self.callback is None:
