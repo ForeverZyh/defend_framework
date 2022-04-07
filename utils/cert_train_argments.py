@@ -6,7 +6,8 @@ def get_arguments():
 
     # general training parameters
     parser.add_argument("-d", "--dataset",
-                        choices=["ember", "mnist", "mnist17", "mnist01", "imdb", "ember_limited", "mnist17_limited"],
+                        choices=["ember", "mnist", "mnist17", "mnist01", "imdb", "ember_limited", "mnist17_limited",
+                                 "fmnist", "cifar10", "contagio"],
                         help="dataset type", required=True)
     parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument("--epochs", type=int, default=200, help="training epochs")

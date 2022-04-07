@@ -28,14 +28,14 @@ class EmberModel(Model):
         momentum = 0.9
         decay = 0.000001
         opt = keras.optimizers.SGD(lr=self.lr, momentum=momentum, decay=decay)
-        self.callback = keras.callbacks.EarlyStopping(
+        self.callback = [keras.callbacks.EarlyStopping(
             monitor="loss",
             min_delta=0.01,
             patience=10,
             verbose=0,
             baseline=None,
             restore_best_weights=True,
-        )
+        )]
 
         model.compile(loss=keras.losses.categorical_crossentropy,
                       optimizer=opt,

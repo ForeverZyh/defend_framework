@@ -2,13 +2,14 @@ import os
 import pickle
 
 import numpy as np
-from tensorflow.keras.datasets import mnist, imdb
+from tensorflow.keras.datasets import mnist, imdb, cifar10, fashion_mnist
 from tensorflow import keras
 import ember
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 
 from utils.ember_feature_utils import load_features
 from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET
+
 
 class DataProcessor:
     def __init__(self, X, y, select_strategy=None, k=None, noise_strategy=None, dataset=None, **kwargs):
@@ -357,6 +358,63 @@ class MNISTDataPreprocessor(DataPreprocessor):
 
         x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
         x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
+
+        x_train = x_train.astype('float32')
+        x_test = x_test.astype('float32')
+        self.x_train = x_train / 255
+        self.x_test = x_test / 255
+        if args.noise_strategy in ["label_flipping", "all_flipping"]:
+            assert args.K == 9
+        if args.noise_strategy in ["feature_flipping", "all_flipping"]:
+            self.x_train = np.minimum(np.floor(self.x_train * (args.K + 1)) / args.K, 1)
+            self.x_test = np.minimum(np.floor(self.x_test * (args.K + 1)) / args.K, 1)
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', x_train.shape, self.y_train.shape)
+        print(x_train.shape[0], 'train samples')
+        print(x_test.shape[0], 'test samples')
+
+
+class FMNISTDataPreprocessor(DataPreprocessor):
+    def __init__(self, args):
+        super(FMNISTDataPreprocessor, self).__init__()
+        # input image dimensions
+        img_rows, img_cols = 28, 28
+
+        self.n_classes = 10
+        self.n_features = (img_rows, img_cols, 1)
+
+        (x_train, self.y_train), (x_test, self.y_test) = fashion_mnist.load_data()
+
+        x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
+        x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
+
+        x_train = x_train.astype('float32')
+        x_test = x_test.astype('float32')
+        self.x_train = x_train / 255
+        self.x_test = x_test / 255
+        if args.noise_strategy in ["label_flipping", "all_flipping"]:
+            assert args.K == 9
+        if args.noise_strategy in ["feature_flipping", "all_flipping"]:
+            self.x_train = np.minimum(np.floor(self.x_train * (args.K + 1)) / args.K, 1)
+            self.x_test = np.minimum(np.floor(self.x_test * (args.K + 1)) / args.K, 1)
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', x_train.shape, self.y_train.shape)
+        print(x_train.shape[0], 'train samples')
+        print(x_test.shape[0], 'test samples')
+
+
+class CIFARDataPreprocessor(DataPreprocessor):
+    def __init__(self, args):
+        super(CIFARDataPreprocessor, self).__init__()
+        # input image dimensions
+        img_rows, img_cols = 32, 32
+
+        self.n_classes = 10
+        self.n_features = (img_rows, img_cols, 3)
+
+        (x_train, self.y_train), (x_test, self.y_test) = cifar10.load_data()
 
         x_train = x_train.astype('float32')
         x_test = x_test.astype('float32')

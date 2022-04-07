@@ -35,7 +35,7 @@ class Model(ABC):
         if self.callback is None:
             self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4)
         else:
-            self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4, callbacks=[self.callback])
+            self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4, callbacks=self.callback)
 
     def evaluate(self, x_test, y_test):
         score = self.model.evaluate(x_test, y_test, verbose=0, batch_size=512)

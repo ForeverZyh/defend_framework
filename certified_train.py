@@ -8,8 +8,8 @@ import tensorflow as tf
 
 from utils.data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor, \
     EmberDataPreProcessor, EMBER_DATASET, EmberPoisonDataPreProcessor, MNIST01DataPreprocessor, \
-    MNIST17LimitedDataPreprocessor
-from models import MNIST17Model, MNISTModel, IMDBTransformerModel, EmberModel, MNIST01Model
+    MNIST17LimitedDataPreprocessor, FMNISTDataPreprocessor, CIFARDataPreprocessor
+from models import MNIST17Model, MNISTModel, IMDBTransformerModel, EmberModel, MNIST01Model, CIFAR10Model
 from utils.train_utils import train_many
 from utils.cert_train_argments import get_arguments
 
@@ -85,6 +85,18 @@ if __name__ == "__main__":
         else:
             data_loader = MNISTDataPreprocessor(args)
         model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes, lr=args.lr)
+    elif args.dataset == "fmnist":
+        if args.load_poison_dir is not None:
+            data_loader = FMNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
+        else:
+            data_loader = FMNISTDataPreprocessor(args)
+        model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes, lr=args.lr)
+    elif args.dataset == "cifar10":
+        if args.load_poison_dir is not None:
+            data_loader = CIFARDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
+        else:
+            data_loader = CIFARDataPreprocessor(args)
+        model = CIFAR10Model.CIFAR10Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     elif args.dataset == "imdb":
         if args.load_poison_dir is not None:
             data_loader = IMDBDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
