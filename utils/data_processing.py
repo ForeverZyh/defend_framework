@@ -83,6 +83,13 @@ class DataProcessor:
             else:
                 raise NotImplementedError
 
+    def noise_data(self, ret_X):
+        mask = np.random.random(ret_X.shape) < self.alpha
+        delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
+        ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
+        ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+        return ret_X
+
     def process_train(self, key_dict):
         ret_X = self.X.copy()
         ret_y = self.y.copy()  # make sure the original data is not modified
@@ -107,11 +114,8 @@ class DataProcessor:
                         else:
                             ret_X = categorized
 
-                    mask = np.random.random(ret_X.shape) < self.alpha
-                    delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
                     pre_ret_X = ret_X
-                    ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
-                    ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+                    ret_X = self.noise_data(ret_X)
                     if self.dataset == "ember_limited":  # protect other features
                         ret_X = ret_X * self.limit_mask + pre_ret_X * (1 - self.limit_mask)
                 if self.noise_strategy in ["label_flipping", "all_flipping"]:
@@ -296,11 +300,11 @@ class MNIST17LimitedDataPreprocessor(DataPreprocessor):
             self.x_train = self.x_train >= 0.5
             self.x_test = self.x_test >= 0.5
         train_ids = np.random.choice(np.arange(x_train.shape[0]), 100, replace=False)
-        #test_ids = np.random.choice(np.arange(x_test.shape[0]), 1000, replace=False)
+        # test_ids = np.random.choice(np.arange(x_test.shape[0]), 1000, replace=False)
         self.x_train = self.x_train[train_ids]
         self.y_train = self.y_train[train_ids]
-        #self.x_test = self.x_test[test_ids]
-        #self.y_test = self.y_test[test_ids]
+        # self.x_test = self.x_test[test_ids]
+        # self.y_test = self.y_test[test_ids]
 
         self.data_processor = self.build_processor(self.x_train, self.y_train, args)
         print('x_train shape:', self.x_train.shape, self.y_train.shape)

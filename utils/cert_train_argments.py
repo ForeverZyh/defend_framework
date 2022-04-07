@@ -15,6 +15,7 @@ def get_arguments():
     parser.add_argument("--gpu_id", type=str, default="0", help="gpu id for training")
     parser.add_argument("--data_aug", action='store_true', help="whether to use data augmentation")
     parser.add_argument("--no_eval_noise", action='store_true', help="whether not to evaluate on noise test data")
+    parser.add_argument("--fix_noise", action='store_true', help="whether to fix noise when testing")
 
     # poisoning defence parameters
     parser.add_argument('--k', action='store', default=None, type=int,
