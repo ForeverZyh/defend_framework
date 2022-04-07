@@ -8,7 +8,7 @@ from scipy.stats import beta
 from tqdm import tqdm
 
 from utils.cal_bound import FlipBoundCalculator, SelectBoundCalculator, BoundCalculator
-from utils.data_processing import FEATURE_DATASET
+from utils import FEATURE_DATASET
 
 
 def output(x):

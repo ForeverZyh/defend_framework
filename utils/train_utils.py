@@ -4,7 +4,7 @@ from tqdm import trange
 import os
 
 from utils.dataaug import DataGeneratorForMNIST
-from utils.data_processing import EMBER_DATASET
+from utils import EMBER_DATASET
 
 
 def train_many(data_loader, model, args, aggregate_result, aggregate_noise_result):
