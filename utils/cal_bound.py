@@ -188,23 +188,6 @@ class BoundCalculator(ABC):
         :param parallel_id: the current parallel id
         :return:
         """
-        if parallel_num is not None:
-            time_sec_float = time.time()
-            time_sec_int = np.floor(time_sec_float) // parallel_num * parallel_num + parallel_id
-            if time_sec_float < time_sec_int:
-                time.sleep(time_sec_int - time_sec_float + 0.5)
-            elif time_sec_int <= time_sec_float < time_sec_int + 1:
-                pass
-            else:
-                time_sec_int += parallel_num
-                time.sleep(time_sec_int - time_sec_float + 0.5)
-
-        try:
-            tmp = np.load(self.cache_file + ".npy", allow_pickle=True).item()
-        except:
-            return
-
-        self.stats_cache.update(tmp)
         np.save(self.cache_file, self.stats_cache)
 
 
@@ -305,35 +288,16 @@ class FlipBoundCalculator(BoundCalculator):
         self.k_ub = min(k, k_ub)
 
         self.fn = dataset
-        if not os.path.exists(os.path.join("list_counts", dataset)):
-            os.mkdir(os.path.join("list_counts", dataset))
 
         self.D = D
         self.d = d
-        self.cache_file = os.path.join("list_counts", dataset,
-                                       f"cache_{str(Ia).replace('/', '__')}_{str(Ib).replace('/', '__')}_{K}_"
-                                       f"{self.k_ub}_{d}")
-        if self.is_noise:
-            self.cache_file += "_True"
-        try:
-            self.stats_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
-        except:
-            np.save(self.cache_file, self.stats_cache)
-
+        self.cache_file = "cache"
         self.complete_cnt_p, self.complete_cnt_q = process_count(Ia, Ib, d, K, s)
 
-        run_name = f'conv_count_{s}_{K}_{str(Ia).replace("/", "__")}_{str(Ib).replace("/", "__")}_{d}'
-        filename = os.path.join("/nobackup/yuhao_data/list_counts", self.fn, f'{run_name}.npz')
-        if os.path.exists(filename):
-            npzfile = np.load(filename, allow_pickle=True)
-            self.complete_cnt_ps, self.complete_cnt_qs = list(npzfile["complete_cnt_ps"]), list(
-                npzfile["complete_cnt_qs"])
-        else:
-            self.complete_cnt_ps = [[1], self.complete_cnt_p]
-            self.complete_cnt_qs = [[1], self.complete_cnt_q]
+        self.complete_cnt_ps = [[1], self.complete_cnt_p]
+        self.complete_cnt_qs = [[1], self.complete_cnt_q]
 
         if len(self.complete_cnt_qs) <= self.k_ub + int(self.is_noise):
-            print("preparing " + run_name)
             # compute convolutions
             resume_round = len(self.complete_cnt_qs)
             for i in trange(resume_round, self.k_ub + 1 + int(self.is_noise)):
@@ -346,10 +310,6 @@ class FlipBoundCalculator(BoundCalculator):
                                 k_]
                             self.complete_cnt_qs[i][j + k_] += self.complete_cnt_qs[1][j] * self.complete_cnt_qs[i - 1][
                                 k_]
-            np.savez(filename,
-                     complete_cnt_ps=self.complete_cnt_ps,
-                     complete_cnt_qs=self.complete_cnt_qs)
-            print("save file " + run_name + ".npz")
 
     def cal_NP_bound(self, remain_to_assign, p_binom, reverse=False, early_stop=None):
         """

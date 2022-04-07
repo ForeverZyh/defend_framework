@@ -54,16 +54,6 @@ def get_count(d, m, n, v, K):
 
 
 def process_count(Ia, Ib, global_d, K, v):
-    run_name = f'complete_count_{v}_{K}_{str(Ia).replace("/", "__")}_{str(Ib).replace("/", "__")}_{global_d}'
-    if not os.path.exists(f"list_counts"):
-        os.mkdir(f"list_counts")
-
-    filename = f'list_counts/{run_name}.npz'
-    if os.path.exists(filename):
-        npzfile = np.load(filename, allow_pickle=True)
-        return npzfile["complete_cnt_p"], npzfile["complete_cnt_q"]
-
-    print(run_name)
     m_range = [0, global_d + 1]  # m -> u in the paper, the number of feature flipped in x
 
     complete_cnt_p = [0] * (global_d * 2 + 1)
@@ -79,9 +69,5 @@ def process_count(Ia, Ib, global_d, K, v):
                     complete_cnt_p[n - m + global_d] += c * my_powe(Ia, global_d - n) * my_powe(Ib, n)
                     complete_cnt_q[n - m + global_d] += c * my_powe(Ia, global_d - m) * my_powe(Ib, m)
 
-    np.savez(filename,
-             complete_cnt_p=complete_cnt_p,
-             complete_cnt_q=complete_cnt_q)
-    print("save file " + run_name + ".npz")
 
     return complete_cnt_p, complete_cnt_q
