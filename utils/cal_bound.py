@@ -17,7 +17,7 @@ class BoundCalculator(ABC):
         self.k = None
         self.D = None
         self.s = None
-        self.k_ub = None
+        self.delta = 0
         self.is_noise = False
 
     @abstractmethod
@@ -37,6 +37,9 @@ class BoundCalculator(ABC):
         lb = min(self.cal_NP_bound(pb, p_binom, reverse=True, early_stop=Fraction(1, 2)), Fraction(1, 2))
         return self.cal_NP_bound(pa, p_binom, early_stop=lb) > lb
 
+    def update_complete_cnts(self, k):
+        pass
+
     def check_radius_binary(self, x, pa):
         """
         return whether the radius is certifiable
@@ -47,15 +50,18 @@ class BoundCalculator(ABC):
         pa = Fraction(pa)
         no_control_proba_mass = Fraction(0)
         p_binom = [None] * (self.k + 1)
-        for i in range(self.k + 1):
+        k_ub = self.k
+        no_control_proba_mass_acc = Fraction(0)
+        for i in range(self.k, -1, -1):
             p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
                     (1 - Fraction(x, self.D)) ** (self.k - i))
-            if i > self.k_ub:
-                no_control_proba_mass += p_binom[i]
+            if no_control_proba_mass <= self.delta:
+                k_ub = i
+                no_control_proba_mass_acc = no_control_proba_mass
+            no_control_proba_mass += p_binom[i]
 
-        if no_control_proba_mass > 1e-4:
-            warnings.warn(f"There is {float(no_control_proba_mass)} probability not controlled! x = {x}")
-        pa -= no_control_proba_mass
+        self.update_complete_cnts(k_ub)
+        pa -= no_control_proba_mass_acc
         if pa - (1 - p_binom[0]) > Fraction(1, 2) and not self.is_noise:
             return True
 
@@ -73,16 +79,18 @@ class BoundCalculator(ABC):
         pb = Fraction(pb)
         no_control_proba_mass = Fraction(0)
         p_binom = [None] * (self.k + 1)
-        for i in range(self.k + 1):
+        k_ub = self.k
+        no_control_proba_mass_acc = Fraction(0)
+        for i in range(self.k, -1, -1):
             p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
                     (1 - Fraction(x, self.D)) ** (self.k - i))
-            if i > self.k_ub:
-                no_control_proba_mass += p_binom[i]
+            if no_control_proba_mass <= self.delta:
+                k_ub = i
+                no_control_proba_mass_acc = no_control_proba_mass
 
-        if no_control_proba_mass > 1e-4:
-            warnings.warn(f"There is {float(no_control_proba_mass)} probability not controlled! x = {x}")
-        pa -= no_control_proba_mass
-        pb += no_control_proba_mass
+        self.update_complete_cnts(k_ub)
+        pa -= no_control_proba_mass_acc
+        pb += no_control_proba_mass_acc
         if pa - (1 - p_binom[0]) > pb + (1 - p_binom[0]) and not self.is_noise:
             return True
 
@@ -294,7 +302,7 @@ class SelectBoundCalculator(BoundCalculator):
 
 
 class FlipBoundCalculator(BoundCalculator):
-    def __init__(self, Ia, Ib, dataset, D, d, K, k, s, is_noise, k_ub):
+    def __init__(self, Ia, Ib, dataset, D, d, K, k, s, is_noise, delta):
         super(FlipBoundCalculator, self).__init__()
         self.Ia = Ia
         self.Ib = Ib
@@ -302,8 +310,7 @@ class FlipBoundCalculator(BoundCalculator):
         self.k = k
         self.s = s
         self.is_noise = is_noise
-        self.k_ub = min(k, k_ub)
-
+        self.delta = delta
         self.fn = dataset
         if not os.path.exists(os.path.join("list_counts", dataset)):
             os.mkdir(os.path.join("list_counts", dataset))
@@ -312,7 +319,7 @@ class FlipBoundCalculator(BoundCalculator):
         self.d = d
         self.cache_file = os.path.join("list_counts", dataset,
                                        f"cache_{str(Ia).replace('/', '__')}_{str(Ib).replace('/', '__')}_{K}_"
-                                       f"{self.k_ub}_{d}")
+                                       f"{self.delta}_{d}")
         if self.is_noise:
             self.cache_file += "_True"
         try:
@@ -322,34 +329,38 @@ class FlipBoundCalculator(BoundCalculator):
 
         self.complete_cnt_p, self.complete_cnt_q = process_count(Ia, Ib, d, K, s)
 
-        run_name = f'conv_count_{s}_{K}_{str(Ia).replace("/", "__")}_{str(Ib).replace("/", "__")}_{d}'
-        filename = os.path.join("/nobackup/yuhao_data/list_counts", self.fn, f'{run_name}.npz')
-        if os.path.exists(filename):
-            npzfile = np.load(filename, allow_pickle=True)
+        self.run_name = f'conv_count_{s}_{K}_{str(Ia).replace("/", "__")}_{str(Ib).replace("/", "__")}_{d}'
+        self.filename = os.path.join("/nobackup/yuhao_data/list_counts", self.fn, f'{self.run_name}.npz')
+        if os.path.exists(self.filename):
+            npzfile = np.load(self.filename, allow_pickle=True)
             self.complete_cnt_ps, self.complete_cnt_qs = list(npzfile["complete_cnt_ps"]), list(
                 npzfile["complete_cnt_qs"])
         else:
             self.complete_cnt_ps = [[1], self.complete_cnt_p]
             self.complete_cnt_qs = [[1], self.complete_cnt_q]
 
-        if len(self.complete_cnt_qs) <= self.k_ub + int(self.is_noise):
-            print("preparing " + run_name)
+        if self.delta == 0:
+            self.update_complete_cnts(k)
+
+    def update_complete_cnts(self, k):
+        if len(self.complete_cnt_qs) <= k + int(self.is_noise):
+            print("preparing " + self.run_name)
             # compute convolutions
             resume_round = len(self.complete_cnt_qs)
-            for i in trange(resume_round, self.k_ub + 1 + int(self.is_noise)):
-                self.complete_cnt_ps.append([0] * (i * d * 2 + 1))
-                self.complete_cnt_qs.append([0] * (i * d * 2 + 1))
-                for j in range(d * 2 + 1):
+            for i in trange(resume_round, k + 1 + int(self.is_noise)):
+                self.complete_cnt_ps.append([0] * (i * self.d * 2 + 1))
+                self.complete_cnt_qs.append([0] * (i * self.d * 2 + 1))
+                for j in range(self.d * 2 + 1):
                     if self.complete_cnt_ps[1][j] > 0 or self.complete_cnt_qs[1][j] > 0:
-                        for k_ in range(d * (i - 1) * 2 + 1):
+                        for k_ in range(self.d * (i - 1) * 2 + 1):
                             self.complete_cnt_ps[i][j + k_] += self.complete_cnt_ps[1][j] * self.complete_cnt_ps[i - 1][
                                 k_]
                             self.complete_cnt_qs[i][j + k_] += self.complete_cnt_qs[1][j] * self.complete_cnt_qs[i - 1][
                                 k_]
-            np.savez(filename,
+            np.savez(self.filename,
                      complete_cnt_ps=self.complete_cnt_ps,
                      complete_cnt_qs=self.complete_cnt_qs)
-            print("save file " + run_name + ".npz")
+            print("save file " + self.run_name + ".npz")
 
     def cal_NP_bound(self, remain_to_assign, p_binom, reverse=False, early_stop=None):
         """
@@ -363,8 +374,7 @@ class FlipBoundCalculator(BoundCalculator):
         we just return the current value
         :return: the lower bound (or upper bound if reverse is True)
         """
-        Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, self.k_ub
-        s = self.s
+        Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, len(self.complete_cnt_qs) - 1
         complete_cnt_ps, complete_cnt_qs = self.complete_cnt_ps, self.complete_cnt_qs
         achieved = 0
 
