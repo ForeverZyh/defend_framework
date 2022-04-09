@@ -15,12 +15,14 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
     aggregate_result[np.arange(0, test_size), -1] = data_loader.y_test
     aggregate_noise_result[np.arange(0, test_size), -1] = data_loader.y_test
 
-    # using the last index for the ground truth label
-    datagen = DataGeneratorForMNIST() if args.data_aug and args.dataset in ["mnist", "mnist17"] else None
     remaining = args.N - np.sum(aggregate_result[0, :-1])
     for i in trange(remaining):
         key_dict = {0: 0, 1: 1, 2: 2}  # used for imdb dataset to get word idx
         X, y = data_loader.data_processor.process_train(key_dict)
+        # using the last index for the ground truth label
+        datagen = DataGeneratorForMNIST() if args.data_aug and args.dataset in IMAGE_DATASET else None
+        if datagen is not None:
+            datagen.fit(X)
         y = keras.utils.to_categorical(y, data_loader.n_classes)
         x_test = data_loader.x_test.copy()
         if args.dataset == "imdb":

@@ -29,7 +29,7 @@ def lr_schedule(epoch):
         lr *= 1e-2
     elif epoch > 80:
         lr *= 1e-1
-    print('Learning rate: ', lr)
+    # print('Learning rate: ', lr)
     return lr
 
 
@@ -165,6 +165,7 @@ class CIFAR10Model(Model):
         lr_scheduler = LearningRateScheduler(lr_schedule)
 
         lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1),
+                                       monitor='loss',
                                        cooldown=0,
                                        patience=5,
                                        min_lr=0.5e-6)

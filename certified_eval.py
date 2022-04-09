@@ -317,7 +317,7 @@ if __name__ == "__main__":
                 args.d = 1
             else:
                 raise NotImplementedError
-    elif args.dataset == "mnist":
+    elif args.dataset in ["mnist", "fmnist"]:
         args.D = 60000
         if args.noise_strategy is not None:
             if args.noise_strategy == "feature_flipping":
