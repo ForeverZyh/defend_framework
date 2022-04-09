@@ -249,8 +249,8 @@ if __name__ == "__main__":
                         )
     parser.add_argument("--delta_non_tight", default=0, type=float,
                         help="the upper bound of probabilities that can induce incompleteness (non-tightness). "
-                        "Setting to 0 means tight certification, setting to 1e-4 can greatly improve efficiency but "
-                        "not seemingly decreasing certified accuracy."
+                             "Setting to 0 means tight certification, setting to 1e-4 can greatly improve efficiency but "
+                             "not seemingly decreasing certified accuracy."
                         )
     parser.add_argument("--parallel_precompute", default=None, type=int,
                         help="the number of manual split for the parallel. None for not parallel"
@@ -326,6 +326,17 @@ if __name__ == "__main__":
                 args.d = 28 * 28
             elif args.noise_strategy == "all_flipping":
                 args.d = 28 * 28 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
+    elif args.dataset == "cifar10":
+        args.D = 50000
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 32 * 32 * 3
+            elif args.noise_strategy == "all_flipping":
+                args.d = 32 * 32 * 3 + 1
             elif args.noise_strategy == "label_flipping":
                 args.d = 1
             else:
