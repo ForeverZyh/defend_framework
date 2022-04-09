@@ -10,8 +10,10 @@ from utils import EMBER_DATASET, IMAGE_DATASET
 def train_many(data_loader, model, args, aggregate_result, aggregate_noise_result):
     test_size = data_loader.x_test.shape[0]
     if aggregate_result is None:
-        aggregate_result = np.zeros([test_size, data_loader.n_classes + 1], dtype=np.int)
-        aggregate_noise_result = np.zeros([test_size, data_loader.n_classes + 1], dtype=np.int)
+        aggregate_result = np.zeros([test_size, data_loader.n_classes + 1 + int(args.select_strategy == "DPA")],
+                                    dtype=np.int)
+        aggregate_noise_result = np.zeros([test_size, data_loader.n_classes + 1 + int(args.select_strategy == "DPA")],
+                                          dtype=np.int)
     aggregate_result[np.arange(0, test_size), -1] = data_loader.y_test
     aggregate_noise_result[np.arange(0, test_size), -1] = data_loader.y_test
 
