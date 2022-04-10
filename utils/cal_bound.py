@@ -24,18 +24,19 @@ class BoundCalculator(ABC):
     def cal_NP_bound(self, remain_to_assign, p_binom, reverse=False, early_stop=None):
         pass
 
-    def check_NP_binary(self, pa, p_binom):
-        return self.cal_NP_bound(pa, p_binom, early_stop=Fraction(1, 2)) > Fraction(1, 2)
+    def check_NP_binary(self, pa, p_binom, delta):
+        return self.cal_NP_bound(pa - delta, p_binom, early_stop=Fraction(1, 2)) > Fraction(1, 2)
 
-    def check_NP(self, pa, pb, p_binom):
+    def check_NP(self, pa, pb, p_binom, delta):
         """
         :param pa:
         :param pb:
         :param p_binom:
+        :param delta: the non-tightness
         :return: whether it is certifiable
         """
-        lb = min(self.cal_NP_bound(pb, p_binom, reverse=True, early_stop=Fraction(1, 2)), Fraction(1, 2))
-        return self.cal_NP_bound(pa, p_binom, early_stop=lb) > lb
+        lb = min(self.cal_NP_bound(pb, p_binom, reverse=True, early_stop=Fraction(1, 2)) + delta, Fraction(1, 2))
+        return self.cal_NP_bound(pa - delta, p_binom, early_stop=lb) > lb
 
     def update_complete_cnts(self, k):
         pass
@@ -61,11 +62,10 @@ class BoundCalculator(ABC):
             no_control_proba_mass += p_binom[i]
 
         self.update_complete_cnts(k_ub)
-        pa -= no_control_proba_mass_acc
         if pa - (1 - p_binom[0]) > Fraction(1, 2) and not self.is_noise:
             return True
 
-        return self.check_NP_binary(pa, p_binom)
+        return self.check_NP_binary(pa, p_binom, no_control_proba_mass_acc)
 
     def check_radius(self, x, pa, pb):
         """
@@ -87,14 +87,13 @@ class BoundCalculator(ABC):
             if no_control_proba_mass <= self.delta:
                 k_ub = i
                 no_control_proba_mass_acc = no_control_proba_mass
+            no_control_proba_mass += p_binom[i]
 
         self.update_complete_cnts(k_ub)
-        pa -= no_control_proba_mass_acc
-        pb += no_control_proba_mass_acc
         if pa - (1 - p_binom[0]) > pb + (1 - p_binom[0]) and not self.is_noise:
             return True
 
-        return self.check_NP(pa, pb, p_binom)
+        return self.check_NP(pa, pb, p_binom, no_control_proba_mass_acc)
 
     def get_pa_lb_binary(self, poisoned_ins_num):
         if (poisoned_ins_num, self.s) in self.stats_cache:
