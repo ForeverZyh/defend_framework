@@ -34,10 +34,15 @@ class DataProcessor:
         self.dataset = dataset
         self.X = X
         self.y = y
+        self.DPA_partition_cnt = 0
         if select_strategy is not None:
-            assert select_strategy in ["bagging_replace", "bagging_wo_replace", "binomial"]
+            assert select_strategy in ["bagging_replace", "bagging_wo_replace", "binomial", "DPA"]
             assert 0 < k <= len(X)
             self.k = k
+            if select_strategy == "DPA":
+                self.ids = np.arange(self.X.shape[0])
+                np.random.shuffle(self.ids)
+                assert self.k * kwargs["N"] <= self.X.shape[0]
 
         if noise_strategy is not None:
             assert noise_strategy in ["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian",
@@ -100,6 +105,10 @@ class DataProcessor:
                 pred = np.random.random(len(self.X)) * len(self.X) < self.k
                 ret_X = ret_X[pred]
                 ret_y = ret_y[pred]
+            elif self.select_strategy == "DPA":
+                ids = self.ids[self.DPA_partition_cnt * self.k:(self.DPA_partition_cnt + 1) * self.k]
+                ret_X = ret_X[ids]
+                ret_y = ret_y[ids]
 
         if self.noise_strategy is not None:
             if self.dataset in FEATURE_DATASET:
@@ -228,7 +237,7 @@ class DataPreprocessor:
         return DataProcessor(x_train, y_train, select_strategy=args.select_strategy, k=args.k,
                              noise_strategy=args.noise_strategy, K=args.K, alpha=args.alpha,
                              sigma=args.sigma, a=args.a, b=args.b, dataset=args.dataset, l=args.l,
-                             test_alpha=args.test_alpha)
+                             test_alpha=args.test_alpha, N=args.N)
 
 
 class MNIST17DataPreprocessor(DataPreprocessor):

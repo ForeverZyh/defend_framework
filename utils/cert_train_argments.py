@@ -22,7 +22,7 @@ def get_arguments():
     parser.add_argument('--k', action='store', default=None, type=int,
                         help='number of (expected) examples in a bag')
     parser.add_argument("--select_strategy", default=None,
-                        choices=["bagging_replace", "bagging_wo_replace", "binomial"],
+                        choices=["bagging_replace", "bagging_wo_replace", "binomial", "DPA"],
                         help="selection strategy")
     parser.add_argument("--noise_strategy", default=None,
                         choices=["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian", "RAB_uniform"
@@ -58,5 +58,19 @@ def get_arguments():
     parser.add_argument("--res_save_dir", default=None, type=str, help="dir for saving the aggregate results")
     parser.add_argument("--exp_name", default=None, type=str, help="name for this experiment")
     parser.add_argument("--ember_data_dir", default="/tmp", type=str, help="dir to store cached ember dataset")
+
+    # auto_LiRPA arguments
+    parser.add_argument("--eps", type=float, default=0.3, help='Target training epsilon')
+    parser.add_argument("--norm", type=float, default='inf', help='p norm for epsilon perturbation')
+    parser.add_argument("--bound_type", type=str, default="CROWN-IBP",
+                        choices=["IBP", "CROWN-IBP", "CROWN", "CROWN-FAST"], help='method of bound analysis')
+    parser.add_argument("--scheduler_name", type=str, default="SmoothedScheduler",
+                        choices=["LinearScheduler", "AdaptiveScheduler", "SmoothedScheduler", "FixedScheduler"],
+                        help='epsilon scheduler')
+    parser.add_argument("--scheduler_opts", type=str, default="start=3,length=60",
+                        help='options for epsilon scheduler')
+    parser.add_argument("--bound_opts", type=str, default=None, choices=["same-slope", "zero-lb", "one-lb"],
+                        help='bound options')
+    parser.add_argument("--conv_mode", type=str, choices=["matrix", "patches"], default="patches")
 
     return parser
