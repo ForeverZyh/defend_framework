@@ -1,6 +1,7 @@
-import torch
+from torchvision import transforms
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 from models.LiRPAModel import LiRPAModel
 
@@ -8,6 +9,20 @@ from models.LiRPAModel import LiRPAModel
 class MNISTModel(LiRPAModel):
     def __init__(self, n_features, n_classes, args, device, lr=1e-3):
         super(MNISTModel, self).__init__(n_features, n_classes, args, device, mlp_3layer, lr)
+
+    def fit(self, X, y, batch_size, epochs, dummy=None):
+        X = np.transpose(X, (0, 3, 1, 2))
+
+        def data_aug(data):
+            data = transforms.RandomCrop(28, 3)(data)
+            data = transforms.RandomRotation(10)(data)
+            return data
+
+        super(MNISTModel, self).fit(X, y, batch_size, epochs, data_aug)
+
+    def evaluate(self, x_test, y_test):
+        x_test = np.transpose(x_test, (0, 3, 1, 2))
+        super(MNISTModel, self).evaluate(x_test, y_test)
 
 
 class mlp_3layer(nn.Module):

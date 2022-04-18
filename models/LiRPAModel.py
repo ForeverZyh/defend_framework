@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from torch.utils.data import TensorDataset, DataLoader
 import torch.optim as optim
 from torch.nn import CrossEntropyLoss
-from torchvision import transforms
 from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import *
 from auto_LiRPA.eps_scheduler import LinearScheduler, AdaptiveScheduler, SmoothedScheduler, FixedScheduler
@@ -33,8 +32,8 @@ class LiRPAModel(ABC):
 
         # print("Model structure: \n", str(self.model_ori))
 
-    def fit(self, X, y, batch_size, epochs):
-        data = TensorDataset(torch.Tensor(np.transpose(X, (0, 3, 1, 2))), torch.Tensor(y).long().max(dim=-1)[1])
+    def fit(self, X, y, batch_size, epochs, data_aug=None):
+        data = TensorDataset(torch.Tensor(X), torch.Tensor(y).long().max(dim=-1)[1])
         loader = DataLoader(data, batch_size=batch_size, shuffle=True, pin_memory=True)
 
         ## Step 4 prepare optimizer, epsilon scheduler and learning rate scheduler
@@ -46,10 +45,10 @@ class LiRPAModel(ABC):
             if eps_scheduler.reached_max_eps():
                 # Only decay learning rate after reaching the maximum eps
                 lr_scheduler.step()
-            self.train(eps_scheduler, opt, loader)
+            self.train(eps_scheduler, opt, loader, data_aug)
 
     def evaluate(self, x_test, y_test):
-        data = TensorDataset(torch.Tensor(np.transpose(x_test, (0, 3, 1, 2))),
+        data = TensorDataset(torch.Tensor(x_test),
                              torch.Tensor(y_test).long().max(dim=-1)[1])
         loader = DataLoader(data, batch_size=256, shuffle=False, pin_memory=True)
 
@@ -144,7 +143,7 @@ class LiRPAModel(ABC):
         # print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))
         return predictions, verified
 
-    def train(self, eps_scheduler, opt, loader):
+    def train(self, eps_scheduler, opt, loader, data_aug):
         norm = float(self.args.norm)
 
         meter = MultiAverageMeter()
@@ -168,8 +167,8 @@ class LiRPAModel(ABC):
             I = (~(labels.data.unsqueeze(1) == torch.arange(self.n_classes).type_as(labels.data).unsqueeze(0)))
             c = (c[I].view(data.size(0), self.n_classes - 1, self.n_classes))
             # bound input for Linf norm used only
-            data = transforms.RandomCrop(28, 3)(data)
-            data = transforms.RandomRotation(10)(data)
+            if data_aug is not None:
+                data = data_aug(data)
             data_ub = data_lb = data
 
             if list(self.model.parameters())[0].is_cuda:
