@@ -6,6 +6,7 @@ from scipy.special import comb
 from tqdm import trange
 import time
 import warnings
+from scipy.stats import norm
 
 from utils.preprocessing_counts import process_count
 
@@ -406,3 +407,79 @@ class FlipBoundCalculator(BoundCalculator):
                     return achieved
 
         return achieved
+
+
+class GaussianBoundCalculator(BoundCalculator):
+    def __init__(self, sigma, dataset, D, d, k, s, is_noise):
+        super(GaussianBoundCalculator, self).__init__()
+        self.sigma = sigma
+        self.k = k
+        self.s = s
+        self.is_noise = is_noise
+        self.fn = dataset
+        if not os.path.exists(os.path.join("list_counts", dataset)):
+            os.mkdir(os.path.join("list_counts", dataset))
+
+        self.D = D
+        self.d = d
+        self.cache_file = os.path.join("list_counts", dataset,
+                                       f"cache_{str(sigma)}_{self.delta}_{d}")
+        if self.is_noise:
+            self.cache_file += "_True"
+        try:
+            self.stats_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
+        except:
+            np.save(self.cache_file, self.stats_cache)
+        self.real_k = 1
+
+    def update_complete_cnts(self, k):
+        self.real_k = k
+
+    def cal_NP_bound(self, remain_to_assign, p_binom, reverse=False, early_stop=None):
+        """
+        return the lower bound (or upper bound if reverse is True) of classification result being y* in the
+        original distribution
+        :param s: the number of poisoned features
+        :param remain_to_assign: the p of classification result being y* in the poisoned distribution
+        :param p_binom: the pmf of the binomial distribution
+        :param reverse: return upper bound (True) or lower bound (False)
+        :param early_stop: if the return value is greater or equal to the early_stop value,
+        we just return the current value
+        :return: the lower bound (or upper bound if reverse is True)
+        """
+        if not reverse:
+            p_l = Fraction(0)
+            p_r = Fraction(1)
+            for _ in range(30):
+                mid = (p_l + p_r) / 2
+                x1 = norm.ppf(float(mid)) * self.sigma
+                if not self.is_noise:
+                    p = p_binom[0] * mid  # c = 0
+                    for i in range(1, self.k + 1):  # 1 <= c <= k
+                        xi = (x1 + (i * i - 1) * self.s / 2) / i
+                        p += p_binom[i] * norm.cdf(xi / self.sigma)
+                else:
+                    p = Fraction(0)
+                    for i in range(1, self.k + 2):  # 1 <= c <= k + 1
+                        xi = (x1 + (i * i - 1) * self.s / 2) / i
+                        p += p_binom[i - 1] * norm.cdf(xi / self.sigma)
+
+                if p > remain_to_assign:
+                    p_r = mid
+                else:
+                    p_l = mid
+
+            if not self.is_noise:
+                ret = p_l * p_binom[0]
+                x1 = norm.ppf(float(p_l)) * self.sigma
+                for i in range(1, self.k + 1):  # 1 <= c <= k
+                    ret += p_binom[i] * norm.cdf((x1 - (1 + i * i) / 2 * self.s) / i / self.sigma)
+            else:
+                ret = Fraction(0)
+                x1 = norm.ppf(float(p_l)) * self.sigma
+                for i in range(1, self.k + 2):  # 1 <= c <= k + 1
+                    ret += p_binom[i - 1] * norm.cdf((x1 - (1 + i * i) / 2 * self.s) / i / self.sigma)
+
+            return ret
+        else:
+            pass

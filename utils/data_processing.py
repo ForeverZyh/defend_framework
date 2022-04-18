@@ -5,7 +5,7 @@ import numpy as np
 from tensorflow.keras.datasets import mnist, imdb, cifar10, fashion_mnist
 from tensorflow import keras
 import ember
-from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
+from sklearn.preprocessing import StandardScaler, KBinsDiscretizer, MinMaxScaler
 
 from utils.ember_feature_utils import load_features
 from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET
@@ -64,9 +64,13 @@ class DataProcessor:
                         assert (self.y >= 0).all() and (self.y <= self.K).all()
                 elif noise_strategy == "RAB_gaussian":
                     self.sigma = kwargs["sigma"]
+                    self.minmax = MinMaxScaler()
+                    self.minmax.fit(self.X)
                 elif noise_strategy == "RAB_uniform":
                     self.a = kwargs["a"]
                     self.b = kwargs["b"]
+                    self.minmax = MinMaxScaler()
+                    self.minmax.fit(self.X)
                 else:
                     raise NotImplementedError
             elif dataset in LANGUAGE_DATASET:
@@ -121,8 +125,10 @@ class DataProcessor:
                     ret_y = ret_y * mask + (1 - mask) * (ret_y + delta)
                     ret_y[ret_y > self.K] -= self.K + 1
                 if self.noise_strategy == "RAB_gaussian":
+                    ret_X = self.minmax.transform(ret_X)
                     ret_X += np.random.normal(0, self.sigma, ret_X.shape)
                 if self.noise_strategy == "RAB_uniform":
+                    ret_X = self.minmax.transform(ret_X)
                     ret_X += np.random.uniform(self.a, self.b, ret_X.shape)
             elif self.dataset in LANGUAGE_DATASET:
                 if self.noise_strategy in ["sentence_select", "all_flipping"]:
