@@ -41,6 +41,9 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
                 x_test[:, data_loader.data_processor.limit_id] = categorized[:, data_loader.data_processor.limit_id]
             else:
                 x_test = categorized
+        elif args.noise_strategy in ["RAB_gaussian", "RAB_uniform"]:
+            x_test = data_loader.data_processor.minmax.transform(x_test)
+
         if datagen is not None:
             model.fit_generator(datagen.flow(X, y, batch_size=args.batch_size), args.epochs)
         else:
