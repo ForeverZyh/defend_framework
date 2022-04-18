@@ -1,13 +1,9 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from fractions import Fraction
 
-from utils.cal_bound import FlipBoundCalculator, SelectBoundCalculator
+from utils.cal_bound import FlipBoundCalculator, SelectBoundCalculator, GaussianBoundCalculator
 
 dataset = "ember"
-fig, ax = plt.subplots()
-ax.set_xlabel('r')
-ax.set_ylabel('s')
 
 if dataset == "mnist17":
     st_d = 0
@@ -35,7 +31,7 @@ elif dataset == "ember":
     K = 1
     Ia = Fraction(7, 10)
     Ib = Fraction(3, 10 * K)
-    bound_cal = FlipBoundCalculator(Ia, Ib, dataset, D, d, K, k)
+    bound_cal = GaussianBoundCalculator(3, dataset, D, d, k, 3, True)
 elif dataset == "sst2":
     bound_cal = SelectBoundCalculator(None, dataset, 25000, 200, 2000, 100)
 else:
@@ -51,4 +47,4 @@ def f(args):
     return complete_cnt[mn0]
 
 
-print(bound_cal.get_pa_lb_binary(3000, 16))
+print(bound_cal.get_poisoned_ins_binary(800, 200, 0.9, 1000))

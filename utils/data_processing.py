@@ -5,7 +5,7 @@ import numpy as np
 from tensorflow.keras.datasets import mnist, imdb, cifar10, fashion_mnist
 from tensorflow import keras
 import ember
-from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
+from sklearn.preprocessing import StandardScaler, KBinsDiscretizer, MinMaxScaler
 
 from utils.ember_feature_utils import load_features
 from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET
@@ -42,7 +42,10 @@ class DataProcessor:
             if select_strategy == "DPA":
                 self.ids = np.arange(self.X.shape[0])
                 np.random.shuffle(self.ids)
-                assert self.k * kwargs["N"] <= self.X.shape[0]
+                assert self.k * kwargs["N"] <= self.X.shape[0] and noise_strategy is None
+                if dataset in EMBER_DATASET:
+                    self.minmax = MinMaxScaler()
+                    self.minmax.fit(self.X)
 
         if noise_strategy is not None:
             assert noise_strategy in ["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian",
@@ -69,9 +72,13 @@ class DataProcessor:
                         assert (self.y >= 0).all() and (self.y <= self.K).all()
                 elif noise_strategy == "RAB_gaussian":
                     self.sigma = kwargs["sigma"]
+                    self.minmax = MinMaxScaler()
+                    self.minmax.fit(self.X)
                 elif noise_strategy == "RAB_uniform":
                     self.a = kwargs["a"]
                     self.b = kwargs["b"]
+                    self.minmax = MinMaxScaler()
+                    self.minmax.fit(self.X)
                 else:
                     raise NotImplementedError
             elif dataset in LANGUAGE_DATASET:
@@ -109,6 +116,8 @@ class DataProcessor:
                 ids = self.ids[self.DPA_partition_cnt * self.k:(self.DPA_partition_cnt + 1) * self.k]
                 ret_X = ret_X[ids]
                 ret_y = ret_y[ids]
+                if self.dataset in EMBER_DATASET:
+                    ret_X = self.minmax.transform(ret_X)
 
         if self.noise_strategy is not None:
             if self.dataset in FEATURE_DATASET:
@@ -130,8 +139,10 @@ class DataProcessor:
                     ret_y = ret_y * mask + (1 - mask) * (ret_y + delta)
                     ret_y[ret_y > self.K] -= self.K + 1
                 if self.noise_strategy == "RAB_gaussian":
+                    ret_X = self.minmax.transform(ret_X)
                     ret_X += np.random.normal(0, self.sigma, ret_X.shape)
                 if self.noise_strategy == "RAB_uniform":
+                    ret_X = self.minmax.transform(ret_X)
                     ret_X += np.random.uniform(self.a, self.b, ret_X.shape)
             elif self.dataset in LANGUAGE_DATASET:
                 if self.noise_strategy in ["sentence_select", "all_flipping"]:
@@ -155,7 +166,7 @@ class DataProcessor:
                         key_dict[x[i]] = len(key_dict)
                     x[i] = key_dict[x[i]]
 
-        if self.dataset in EMBER_DATASET:
+        if self.dataset in EMBER_DATASET and self.select_strategy != "DPA":
             self.normal = StandardScaler()
             ret_X = self.normal.fit_transform(ret_X)
 
@@ -213,7 +224,7 @@ class DataProcessor:
 
                         ret_X = np.array(ret_X_new)
 
-        if self.dataset in EMBER_DATASET:
+        if self.dataset in EMBER_DATASET and self.select_strategy != "DPA":
             ret_X = self.normal.transform(ret_X)
 
         return ret_X

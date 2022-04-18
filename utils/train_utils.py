@@ -41,12 +41,16 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
                 x_test[:, data_loader.data_processor.limit_id] = categorized[:, data_loader.data_processor.limit_id]
             else:
                 x_test = categorized
+        elif args.noise_strategy in ["RAB_gaussian", "RAB_uniform"] or (
+                args.dataset in EMBER_DATASET and args.select_strategy == "DPA"):
+            x_test = data_loader.data_processor.minmax.transform(x_test)
+
         if datagen is not None:
             model.fit_generator(datagen.flow(X, y, batch_size=args.batch_size), args.epochs)
         else:
             model.fit(X, y, args.batch_size, args.epochs)
 
-        if args.dataset in EMBER_DATASET:
+        if args.dataset in EMBER_DATASET and args.select_strategy != "DPA":
             prediction_label = model.evaluate(data_loader.data_processor.normal.transform(x_test), y_test)
         else:
             prediction_label = model.evaluate(x_test, y_test)
