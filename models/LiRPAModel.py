@@ -77,7 +77,7 @@ class LiRPAModel(ABC):
             data_ub = data_lb = data
 
             if list(self.model.parameters())[0].is_cuda:
-                data, labels = data.cuda(), labels.cuda()
+                data = data.cuda()
                 data_lb, data_ub = data_lb.cuda(), data_ub.cuda()
 
             # Specify Lp norm perturbation.
@@ -136,8 +136,8 @@ class LiRPAModel(ABC):
             #     meter.update('Verified_Err', torch.sum((lb < 0).any(dim=1)).item() / data.size(0), data.size(0))
             # if i % 50 == 0 and train:
             #     print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))
-            batch_predictions = batch_predictions.numpy()
-            batch_verified = (lb > 0).all(dim=1).numpy()
+            batch_predictions = batch_predictions.cpu().numpy()
+            batch_verified = (lb > 0).all(dim=1).cpu().numpy()
             predictions = np.append(predictions, batch_predictions)
             verified = np.append(verified, batch_verified)
 
