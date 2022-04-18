@@ -72,6 +72,33 @@ def get_abstain_bagging_replace(res, conf, ex_in_bag, poison_ins_num, D, poison_
     return ret
 
 
+def get_abstain_DPA(res, poison_ins_num):
+    # res.shape: (n_examples, n_classes + 2)
+    ret = np.ones(res.shape[0])
+
+    with tqdm(total=len(res)) as progress_bar:
+        metric = Metric()
+        for i in range(len(res)):
+            majority = np.argmax(res[i][:-1])
+            top_1 = res[i][majority]
+            top_2 = max(res[i][j] for j in range(res.shape[1] - 1) if j != majority)
+
+            if majority == res.shape[1] - 2:
+                ret[i] = 0
+            elif majority == res[i][-1]:
+                ret[i] = 1
+            else:
+                ret[i] = -1
+            ori = ret[i]
+            if (top_1 - top_2 - 1) // 2 < poison_ins_num:
+                ret[i] = 0
+            metric.update(ori, ret[i])
+            progress_bar.set_postfix(metric.get_postfix())
+            progress_bar.update(1)
+
+    return ret
+
+
 def get_abstain_bagging_replace_feature_flip(res, conf, poisoned_ins_num, poisoned_feat_num,
                                              bound_cal: BoundCalculator):
     # res.shape: (n_examples, n_classes + 1)
@@ -120,6 +147,30 @@ def get_pa_pb(top_1, top_2, bags, alpha, n_classes):
         p_a = max(p_a, 1 - p_b)
     p_b = min(p_b, 1 - p_a)
     return p_a, p_b
+
+
+def precompute_DPA(res):
+    # res.shape: (n_examples, n_classes + 2)
+    radius = []
+    cor_cnt = 0
+    auc = 0
+
+    for i in range(len(res)):
+        majority = np.argmax(res[i][:-1])
+        top_1 = res[i][majority]
+        top_2 = max(res[i][j] for j in range(res.shape[1] - 1) if j != majority)
+
+        if majority == res.shape[1] - 2:
+            radius.append(0)
+        elif majority == res[i][-1]:
+            cor_cnt += 1
+            r = (top_1 - top_2 - 1) // 2
+            radius.append(r)
+            auc += r
+
+    radius.sort()
+    mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
+    print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
 
 
 def precompute_bag(res, conf, ex_in_bag, D):
@@ -419,5 +470,18 @@ if __name__ == "__main__":
                 np.save(cache_filename, cache)
 
             # output(ret)
+    elif args.select_strategy == "DPA":
+        if not args.draw_only:
+            precompute_DPA(res)
+        if args.precompute_only:
+            exit(0)
+        for poison_ins_num in poisoned_ins_num_range:
+            if poison_ins_num in cache:
+                ret = cache[poison_ins_num]
+            else:
+                ret = get_abstain_DPA(res, poison_ins_num)
+                cache[poison_ins_num] = ret
+                np.save(cache_filename, cache)
+
     else:
         raise NotImplementedError
