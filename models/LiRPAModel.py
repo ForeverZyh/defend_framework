@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from torch.utils.data import TensorDataset, DataLoader
 import torch.optim as optim
 from torch.nn import CrossEntropyLoss
+from torchvision import transforms
 from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import *
 from auto_LiRPA.eps_scheduler import LinearScheduler, AdaptiveScheduler, SmoothedScheduler, FixedScheduler
@@ -26,7 +27,6 @@ class LiRPAModel(ABC):
         ## Step 3: wrap model with auto_LiRPA
         # The second parameter dummy_input is for constructing the trace of the computational graph.
         dummy_input = torch.randn(*([2] + list(self.input_shape)))
-        # TODO: fix the channel first assumption
         self.model = BoundedModule(self.model_ori, dummy_input,
                                    bound_opts={'relu': self.args.bound_opts, 'conv_mode': self.args.conv_mode},
                                    device=self.device)
@@ -34,7 +34,7 @@ class LiRPAModel(ABC):
         # print("Model structure: \n", str(self.model_ori))
 
     def fit(self, X, y, batch_size, epochs):
-        data = TensorDataset(torch.Tensor(X), torch.Tensor(y).long().max(dim=-1)[1])
+        data = TensorDataset(torch.Tensor(np.transpose(X, (0, 3, 1, 2))), torch.Tensor(y).long().max(dim=-1)[1])
         loader = DataLoader(data, batch_size=batch_size, shuffle=True, pin_memory=True)
 
         ## Step 4 prepare optimizer, epsilon scheduler and learning rate scheduler
@@ -49,7 +49,8 @@ class LiRPAModel(ABC):
             self.train(eps_scheduler, opt, loader)
 
     def evaluate(self, x_test, y_test):
-        data = TensorDataset(torch.Tensor(x_test), torch.Tensor(y_test).long().max(dim=-1)[1])
+        data = TensorDataset(torch.Tensor(np.transpose(x_test, (0, 3, 1, 2))),
+                             torch.Tensor(y_test).long().max(dim=-1)[1])
         loader = DataLoader(data, batch_size=256, shuffle=False, pin_memory=True)
 
         eps_scheduler = FixedScheduler(self.args.eps)
@@ -167,6 +168,8 @@ class LiRPAModel(ABC):
             I = (~(labels.data.unsqueeze(1) == torch.arange(self.n_classes).type_as(labels.data).unsqueeze(0)))
             c = (c[I].view(data.size(0), self.n_classes - 1, self.n_classes))
             # bound input for Linf norm used only
+            data = transforms.RandomCrop(28, 3)(data)
+            data = transforms.RandomRotation(10)(data)
             data_ub = data_lb = data
 
             if list(self.model.parameters())[0].is_cuda:
@@ -222,8 +225,8 @@ class LiRPAModel(ABC):
             meter.update('Loss', loss.item(), data.size(0))
             if batch_method != "natural":
                 meter.update('Robust_CE', robust_ce.item(), data.size(0))
-            #     # For an example, if lower bounds of margins is >0 for all classes, the output is verifiably correct.
-            #     # If any margin is < 0 this example is counted as an error
+                #     # For an example, if lower bounds of margins is >0 for all classes, the output is verifiably correct.
+                #     # If any margin is < 0 this example is counted as an error
                 meter.update('Verified_Err', torch.sum((lb < 0).any(dim=1)).item() / data.size(0), data.size(0))
             # # if i % 50 == 0 and train:
             #     print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))
