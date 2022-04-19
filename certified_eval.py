@@ -167,6 +167,8 @@ def precompute_DPA(res):
             r = (top_1 - top_2 - 1) // 2
             radius.append(r)
             auc += r
+        else:
+            radius.append(0)
 
     radius.sort()
     mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
