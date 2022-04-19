@@ -167,21 +167,22 @@ class LiRPAModel(ABC):
             I = (~(labels.data.unsqueeze(1) == torch.arange(self.n_classes).type_as(labels.data).unsqueeze(0)))
             c = (c[I].view(data.size(0), self.n_classes - 1, self.n_classes))
             # bound input for Linf norm used only
-            if data_aug is not None:
-                data = data_aug(data)
-            data_ub = data_lb = data
+            # data_ub = data_lb = data
 
             if list(self.model.parameters())[0].is_cuda:
                 data, labels, c = data.cuda(), labels.cuda(), c.cuda()
-                data_lb, data_ub = data_lb.cuda(), data_ub.cuda()
+                # data_lb, data_ub = data_lb.cuda(), data_ub.cuda()
+
+            if data_aug is not None:
+                data = data_aug(data)
 
             # Specify Lp norm perturbation.
             # When using Linf perturbation, we manually set element-wise bound x_L and x_U. eps is not used for Linf norm.
-            if norm > 0:
-                ptb = PerturbationLpNorm(norm=norm, eps=eps, x_L=data_lb, x_U=data_ub)
-            elif norm == 0:
-                ptb = PerturbationL0Norm(eps=eps_scheduler.get_max_eps(),
-                                         ratio=eps_scheduler.get_eps() / eps_scheduler.get_max_eps())
+            # if norm > 0:
+            #     ptb = PerturbationLpNorm(norm=norm, eps=eps, x_L=data_lb, x_U=data_ub)
+            # elif norm == 0:
+            ptb = PerturbationL0Norm(eps=eps_scheduler.get_max_eps(),
+                                     ratio=eps_scheduler.get_eps() / eps_scheduler.get_max_eps())
             x = BoundedTensor(data, ptb)
 
             output = self.model(x)

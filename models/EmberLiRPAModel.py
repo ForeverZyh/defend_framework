@@ -21,7 +21,7 @@ class EmberModel(LiRPAModel):
 
     def evaluate(self, x_test, y_test):
         x_test = np.expand_dims(x_test, axis=[1, 2])
-        super(EmberModel, self).evaluate(x_test, y_test)
+        return super(EmberModel, self).evaluate(x_test, y_test)
 
 
 class mlp_4layer(nn.Module):

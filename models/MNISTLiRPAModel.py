@@ -22,7 +22,7 @@ class MNISTModel(LiRPAModel):
 
     def evaluate(self, x_test, y_test):
         x_test = np.transpose(x_test, (0, 3, 1, 2))
-        super(MNISTModel, self).evaluate(x_test, y_test)
+        return super(MNISTModel, self).evaluate(x_test, y_test)
 
 
 class mlp_3layer(nn.Module):
