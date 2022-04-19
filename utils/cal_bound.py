@@ -374,7 +374,7 @@ class FlipBoundCalculator(BoundCalculator):
         we just return the current value
         :return: the lower bound (or upper bound if reverse is True)
         """
-        Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, len(self.complete_cnt_qs) - 1
+        Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, len(self.complete_cnt_qs) - 1 - int(self.is_noise)
         complete_cnt_ps, complete_cnt_qs = self.complete_cnt_ps, self.complete_cnt_qs
         achieved = 0
 
