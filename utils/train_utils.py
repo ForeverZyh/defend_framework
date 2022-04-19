@@ -50,17 +50,23 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
         else:
             model.fit(X, y, args.batch_size, args.epochs)
 
-        if args.dataset in EMBER_DATASET and args.select_strategy != "DPA":
-            prediction_label = model.evaluate(data_loader.data_processor.normal.transform(x_test), y_test)
+        if args.select_strategy != "DPA":
+            if args.dataset in EMBER_DATASET:
+                prediction_label = model.evaluate(data_loader.data_processor.normal.transform(x_test), y_test)
+            else:
+                prediction_label = model.evaluate(x_test, y_test)
+            aggregate_result[np.arange(0, test_size), prediction_label] += 1
+
+            if args.noise_strategy is None or args.no_eval_noise:
+                aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
+            else:
+                X_test = data_loader.data_processor.process_test(x_test, args.fix_noise)
+                prediction_label = model.evaluate(X_test, y_test)
+                aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
         else:
-            prediction_label = model.evaluate(x_test, y_test)
-        aggregate_result[np.arange(0, test_size), prediction_label] += 1
-        if args.noise_strategy is None or args.no_eval_noise:
-            aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
-        else:
-            X_test = data_loader.data_processor.process_test(x_test, args.fix_noise)
-            prediction_label = model.evaluate(X_test, y_test)
-            aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
+            prediction_label, prediction_label_cert = model.evaluate(x_test, y_test)
+            aggregate_result[np.arange(0, test_size), prediction_label] += 1
+            aggregate_noise_result[np.arange(0, test_size), prediction_label_cert] += 1
 
         model.init()
         np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))
