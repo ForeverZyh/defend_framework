@@ -57,7 +57,7 @@ class LiRPAModel(ABC):
             predictions, verified = self.test(eps_scheduler, loader)
             print("Test accuracy: ", np.mean(predictions == np.argmax(y_test, axis=-1)))
             predictions_cert = predictions * verified + (1 - verified) * self.n_classes
-            print("Certified accuracy: ", np.mean(predictions == np.argmax(y_test, axis=-1)))
+            print("Certified accuracy: ", np.mean(predictions_cert == np.argmax(y_test, axis=-1)))
             return predictions, predictions_cert
 
     def test(self, eps_scheduler, loader):
