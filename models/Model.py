@@ -12,14 +12,13 @@ class Model(ABC):
         self.lr = lr
         self.callback = None
         self.model = self.build_model()
-        self.weights_initialize = self.model.get_weights()
 
     @abstractmethod
     def build_model(self):
         pass
 
     def init(self):
-        self.model.set_weights(self.weights_initialize)
+        self.model = self.build_model()
 
     def save(self, save_path, file_name='mnist_nn'):
         save_model = self.model
