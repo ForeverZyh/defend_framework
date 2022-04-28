@@ -87,7 +87,7 @@ class DataProcessor:
     def noise_data(self, ret_X):
         mask = np.random.random(ret_X.shape) < self.alpha
         delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
-        ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
+        ret_X += (1 - mask) * delta
         ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
         return ret_X
 
@@ -152,7 +152,7 @@ class DataProcessor:
                         key_dict[x[i]] = len(key_dict)
                     x[i] = key_dict[x[i]]
 
-        if self.dataset in EMBER_DATASET:
+        if self.dataset in EMBER_DATASET and self.noise_strategy is None:
             self.normal = StandardScaler()
             ret_X = self.normal.fit_transform(ret_X)
 
@@ -210,7 +210,7 @@ class DataProcessor:
 
                         ret_X = np.array(ret_X_new)
 
-        if self.dataset in EMBER_DATASET:
+        if self.dataset in EMBER_DATASET and self.noise_strategy is None:
             ret_X = self.normal.transform(ret_X)
 
         return ret_X
