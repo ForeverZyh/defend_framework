@@ -12,14 +12,13 @@ class Model(ABC):
         self.lr = lr
         self.callback = None
         self.model = self.build_model()
-        self.weights_initialize = self.model.get_weights()
 
     @abstractmethod
     def build_model(self):
         pass
 
     def init(self):
-        self.model.set_weights(self.weights_initialize)
+        self.model = self.build_model()
 
     def save(self, save_path, file_name='mnist_nn'):
         save_model = self.model
@@ -28,14 +27,11 @@ class Model(ABC):
     def load(self, save_path, file_name):
         self.model = load_model(os.path.join(save_path, file_name + '.h5'))
 
-    def fit_generator(self, datagen, epochs):
-        self.model.fit_generator(datagen, epochs=epochs, verbose=0, workers=4)
+    def fit_generator(self, datagen, epochs, X_val, y_val):
+        self.model.fit(datagen, epochs=epochs, verbose=0, workers=4, callbacks=self.callback)
 
-    def fit(self, X, y, batch_size, epochs):
-        if self.callback is None:
-            self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4)
-        else:
-            self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4, callbacks=[self.callback])
+    def fit(self, X, y, batch_size, epochs, X_val, y_val):
+        self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4, callbacks=self.callback)
 
     def evaluate(self, x_test, y_test):
         score = self.model.evaluate(x_test, y_test, verbose=0, batch_size=512)

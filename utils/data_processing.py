@@ -2,13 +2,14 @@ import os
 import pickle
 
 import numpy as np
-from tensorflow.keras.datasets import mnist, imdb
+from tensorflow.keras.datasets import mnist, imdb, cifar10, fashion_mnist
 from tensorflow import keras
 import ember
-from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
+from sklearn.preprocessing import StandardScaler, KBinsDiscretizer, MinMaxScaler
 
 from utils.ember_feature_utils import load_features
 from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET
+
 
 class DataProcessor:
     def __init__(self, X, y, select_strategy=None, k=None, noise_strategy=None, dataset=None, **kwargs):
@@ -63,9 +64,13 @@ class DataProcessor:
                         assert (self.y >= 0).all() and (self.y <= self.K).all()
                 elif noise_strategy == "RAB_gaussian":
                     self.sigma = kwargs["sigma"]
+                    self.minmax = MinMaxScaler()
+                    self.minmax.fit(self.X)
                 elif noise_strategy == "RAB_uniform":
                     self.a = kwargs["a"]
                     self.b = kwargs["b"]
+                    self.minmax = MinMaxScaler()
+                    self.minmax.fit(self.X)
                 else:
                     raise NotImplementedError
             elif dataset in LANGUAGE_DATASET:
@@ -78,6 +83,13 @@ class DataProcessor:
                     assert (self.y >= 0).all() and (self.y <= self.K).all()
             else:
                 raise NotImplementedError
+
+    def noise_data(self, ret_X):
+        mask = np.random.random(ret_X.shape) < self.alpha
+        delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
+        ret_X += (1 - mask) * delta
+        ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+        return ret_X
 
     def process_train(self, key_dict):
         ret_X = self.X.copy()
@@ -103,11 +115,8 @@ class DataProcessor:
                         else:
                             ret_X = categorized
 
-                    mask = np.random.random(ret_X.shape) < self.alpha
-                    delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
                     pre_ret_X = ret_X
-                    ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
-                    ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+                    ret_X = self.noise_data(ret_X)
                     if self.dataset == "ember_limited":  # protect other features
                         ret_X = ret_X * self.limit_mask + pre_ret_X * (1 - self.limit_mask)
                 if self.noise_strategy in ["label_flipping", "all_flipping"]:
@@ -116,8 +125,10 @@ class DataProcessor:
                     ret_y = ret_y * mask + (1 - mask) * (ret_y + delta)
                     ret_y[ret_y > self.K] -= self.K + 1
                 if self.noise_strategy == "RAB_gaussian":
+                    ret_X = self.minmax.transform(ret_X)
                     ret_X += np.random.normal(0, self.sigma, ret_X.shape)
                 if self.noise_strategy == "RAB_uniform":
+                    ret_X = self.minmax.transform(ret_X)
                     ret_X += np.random.uniform(self.a, self.b, ret_X.shape)
             elif self.dataset in LANGUAGE_DATASET:
                 if self.noise_strategy in ["sentence_select", "all_flipping"]:
@@ -141,7 +152,7 @@ class DataProcessor:
                         key_dict[x[i]] = len(key_dict)
                     x[i] = key_dict[x[i]]
 
-        if self.dataset in EMBER_DATASET:
+        if self.dataset in EMBER_DATASET and self.noise_strategy is None:
             self.normal = StandardScaler()
             ret_X = self.normal.fit_transform(ret_X)
 
@@ -199,7 +210,7 @@ class DataProcessor:
 
                         ret_X = np.array(ret_X_new)
 
-        if self.dataset in EMBER_DATASET:
+        if self.dataset in EMBER_DATASET and self.noise_strategy is None:
             ret_X = self.normal.transform(ret_X)
 
         return ret_X
@@ -292,11 +303,11 @@ class MNIST17LimitedDataPreprocessor(DataPreprocessor):
             self.x_train = self.x_train >= 0.5
             self.x_test = self.x_test >= 0.5
         train_ids = np.random.choice(np.arange(x_train.shape[0]), 100, replace=False)
-        #test_ids = np.random.choice(np.arange(x_test.shape[0]), 1000, replace=False)
+        # test_ids = np.random.choice(np.arange(x_test.shape[0]), 1000, replace=False)
         self.x_train = self.x_train[train_ids]
         self.y_train = self.y_train[train_ids]
-        #self.x_test = self.x_test[test_ids]
-        #self.y_test = self.y_test[test_ids]
+        # self.x_test = self.x_test[test_ids]
+        # self.y_test = self.y_test[test_ids]
 
         self.data_processor = self.build_processor(self.x_train, self.y_train, args)
         print('x_train shape:', self.x_train.shape, self.y_train.shape)
@@ -353,6 +364,65 @@ class MNISTDataPreprocessor(DataPreprocessor):
 
         x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
         x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
+
+        x_train = x_train.astype('float32')
+        x_test = x_test.astype('float32')
+        self.x_train = x_train / 255
+        self.x_test = x_test / 255
+        if args.noise_strategy in ["label_flipping", "all_flipping"]:
+            assert args.K == 9
+        if args.noise_strategy in ["feature_flipping", "all_flipping"]:
+            self.x_train = np.minimum(np.floor(self.x_train * (args.K + 1)) / args.K, 1)
+            self.x_test = np.minimum(np.floor(self.x_test * (args.K + 1)) / args.K, 1)
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', x_train.shape, self.y_train.shape)
+        print(x_train.shape[0], 'train samples')
+        print(x_test.shape[0], 'test samples')
+
+
+class FMNISTDataPreprocessor(DataPreprocessor):
+    def __init__(self, args):
+        super(FMNISTDataPreprocessor, self).__init__()
+        # input image dimensions
+        img_rows, img_cols = 28, 28
+
+        self.n_classes = 10
+        self.n_features = (img_rows, img_cols, 1)
+
+        (x_train, self.y_train), (x_test, self.y_test) = fashion_mnist.load_data()
+
+        x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
+        x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
+
+        x_train = x_train.astype('float32')
+        x_test = x_test.astype('float32')
+        self.x_train = x_train / 255
+        self.x_test = x_test / 255
+        if args.noise_strategy in ["label_flipping", "all_flipping"]:
+            assert args.K == 9
+        if args.noise_strategy in ["feature_flipping", "all_flipping"]:
+            self.x_train = np.minimum(np.floor(self.x_train * (args.K + 1)) / args.K, 1)
+            self.x_test = np.minimum(np.floor(self.x_test * (args.K + 1)) / args.K, 1)
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', x_train.shape, self.y_train.shape)
+        print(x_train.shape[0], 'train samples')
+        print(x_test.shape[0], 'test samples')
+
+
+class CIFARDataPreprocessor(DataPreprocessor):
+    def __init__(self, args):
+        super(CIFARDataPreprocessor, self).__init__()
+        # input image dimensions
+        img_rows, img_cols = 32, 32
+
+        self.n_classes = 10
+        self.n_features = (img_rows, img_cols, 3)
+
+        (x_train, self.y_train), (x_test, self.y_test) = cifar10.load_data()
+        self.y_test = np.reshape(self.y_test, -1)
+        self.y_train = np.reshape(self.y_train, -1)
 
         x_train = x_train.astype('float32')
         x_test = x_test.astype('float32')

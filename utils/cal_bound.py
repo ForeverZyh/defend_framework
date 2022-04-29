@@ -6,6 +6,7 @@ from scipy.special import comb
 from tqdm import trange
 import time
 import warnings
+from scipy.stats import norm
 
 from utils.preprocessing_counts import process_count
 
@@ -17,25 +18,29 @@ class BoundCalculator(ABC):
         self.k = None
         self.D = None
         self.s = None
-        self.k_ub = None
+        self.delta = 0
         self.is_noise = False
 
     @abstractmethod
     def cal_NP_bound(self, remain_to_assign, p_binom, reverse=False, early_stop=None):
         pass
 
-    def check_NP_binary(self, pa, p_binom):
-        return self.cal_NP_bound(pa, p_binom, early_stop=Fraction(1, 2)) > Fraction(1, 2)
+    def check_NP_binary(self, pa, p_binom, delta):
+        return self.cal_NP_bound(pa - delta, p_binom, early_stop=Fraction(1, 2)) > Fraction(1, 2)
 
-    def check_NP(self, pa, pb, p_binom):
+    def check_NP(self, pa, pb, p_binom, delta):
         """
         :param pa:
         :param pb:
         :param p_binom:
+        :param delta: the non-tightness
         :return: whether it is certifiable
         """
-        lb = min(self.cal_NP_bound(pb, p_binom, reverse=True, early_stop=Fraction(1, 2)), Fraction(1, 2))
-        return self.cal_NP_bound(pa, p_binom, early_stop=lb) > lb
+        lb = min(self.cal_NP_bound(pb, p_binom, reverse=True, early_stop=Fraction(1, 2)) + delta, Fraction(1, 2))
+        return self.cal_NP_bound(pa - delta, p_binom, early_stop=lb) > lb
+
+    def update_complete_cnts(self, k):
+        pass
 
     def check_radius_binary(self, x, pa):
         """
@@ -47,19 +52,21 @@ class BoundCalculator(ABC):
         pa = Fraction(pa)
         no_control_proba_mass = Fraction(0)
         p_binom = [None] * (self.k + 1)
-        for i in range(self.k + 1):
+        k_ub = self.k
+        no_control_proba_mass_acc = Fraction(0)
+        for i in range(self.k, -1, -1):
             p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
                     (1 - Fraction(x, self.D)) ** (self.k - i))
-            if i > self.k_ub:
-                no_control_proba_mass += p_binom[i]
+            if no_control_proba_mass <= self.delta:
+                k_ub = i
+                no_control_proba_mass_acc = no_control_proba_mass
+            no_control_proba_mass += p_binom[i]
 
-        if no_control_proba_mass > 1e-4:
-            warnings.warn(f"There is {float(no_control_proba_mass)} probability not controlled! x = {x}")
-        pa -= no_control_proba_mass
+        self.update_complete_cnts(k_ub)
         if pa - (1 - p_binom[0]) > Fraction(1, 2) and not self.is_noise:
             return True
 
-        return self.check_NP_binary(pa, p_binom)
+        return self.check_NP_binary(pa, p_binom, no_control_proba_mass_acc)
 
     def check_radius(self, x, pa, pb):
         """
@@ -73,20 +80,21 @@ class BoundCalculator(ABC):
         pb = Fraction(pb)
         no_control_proba_mass = Fraction(0)
         p_binom = [None] * (self.k + 1)
-        for i in range(self.k + 1):
+        k_ub = self.k
+        no_control_proba_mass_acc = Fraction(0)
+        for i in range(self.k, -1, -1):
             p_binom[i] = comb(self.k, i, exact=True) * (Fraction(x, self.D) ** i) * (
                     (1 - Fraction(x, self.D)) ** (self.k - i))
-            if i > self.k_ub:
-                no_control_proba_mass += p_binom[i]
+            if no_control_proba_mass <= self.delta:
+                k_ub = i
+                no_control_proba_mass_acc = no_control_proba_mass
+            no_control_proba_mass += p_binom[i]
 
-        if no_control_proba_mass > 1e-4:
-            warnings.warn(f"There is {float(no_control_proba_mass)} probability not controlled! x = {x}")
-        pa -= no_control_proba_mass
-        pb += no_control_proba_mass
+        self.update_complete_cnts(k_ub)
         if pa - (1 - p_binom[0]) > pb + (1 - p_binom[0]) and not self.is_noise:
             return True
 
-        return self.check_NP(pa, pb, p_binom)
+        return self.check_NP(pa, pb, p_binom, no_control_proba_mass_acc)
 
     def get_pa_lb_binary(self, poisoned_ins_num):
         if (poisoned_ins_num, self.s) in self.stats_cache:
@@ -277,7 +285,7 @@ class SelectBoundCalculator(BoundCalculator):
 
 
 class FlipBoundCalculator(BoundCalculator):
-    def __init__(self, Ia, Ib, dataset, D, d, K, k, s, is_noise, k_ub):
+    def __init__(self, Ia, Ib, dataset, D, d, K, k, s, is_noise, delta):
         super(FlipBoundCalculator, self).__init__()
         self.Ia = Ia
         self.Ib = Ib
@@ -285,8 +293,7 @@ class FlipBoundCalculator(BoundCalculator):
         self.k = k
         self.s = s
         self.is_noise = is_noise
-        self.k_ub = min(k, k_ub)
-
+        self.delta = delta
         self.fn = dataset
 
         self.D = D
@@ -297,15 +304,19 @@ class FlipBoundCalculator(BoundCalculator):
         self.complete_cnt_ps = [[1], self.complete_cnt_p]
         self.complete_cnt_qs = [[1], self.complete_cnt_q]
 
-        if len(self.complete_cnt_qs) <= self.k_ub + int(self.is_noise):
+        if self.delta == 0:
+            self.update_complete_cnts(k)
+
+    def update_complete_cnts(self, k):
+        if len(self.complete_cnt_qs) <= k + int(self.is_noise):
             # compute convolutions
             resume_round = len(self.complete_cnt_qs)
-            for i in trange(resume_round, self.k_ub + 1 + int(self.is_noise)):
-                self.complete_cnt_ps.append([0] * (i * d * 2 + 1))
-                self.complete_cnt_qs.append([0] * (i * d * 2 + 1))
-                for j in range(d * 2 + 1):
+            for i in trange(resume_round, k + 1 + int(self.is_noise)):
+                self.complete_cnt_ps.append([0] * (i * self.d * 2 + 1))
+                self.complete_cnt_qs.append([0] * (i * self.d * 2 + 1))
+                for j in range(self.d * 2 + 1):
                     if self.complete_cnt_ps[1][j] > 0 or self.complete_cnt_qs[1][j] > 0:
-                        for k_ in range(d * (i - 1) * 2 + 1):
+                        for k_ in range(self.d * (i - 1) * 2 + 1):
                             self.complete_cnt_ps[i][j + k_] += self.complete_cnt_ps[1][j] * self.complete_cnt_ps[i - 1][
                                 k_]
                             self.complete_cnt_qs[i][j + k_] += self.complete_cnt_qs[1][j] * self.complete_cnt_qs[i - 1][
@@ -323,8 +334,8 @@ class FlipBoundCalculator(BoundCalculator):
         we just return the current value
         :return: the lower bound (or upper bound if reverse is True)
         """
-        Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, self.k_ub
-        s = self.s
+        Ia, Ib, fn, D, d, K, k = self.Ia, self.Ib, self.fn, self.D, self.d, self.K, len(self.complete_cnt_qs) - 1 - int(
+            self.is_noise)
         complete_cnt_ps, complete_cnt_qs = self.complete_cnt_ps, self.complete_cnt_qs
         achieved = 0
 
@@ -357,3 +368,79 @@ class FlipBoundCalculator(BoundCalculator):
                     return achieved
 
         return achieved
+
+
+class GaussianBoundCalculator(BoundCalculator):
+    def __init__(self, sigma, dataset, D, d, k, s, is_noise):
+        super(GaussianBoundCalculator, self).__init__()
+        self.sigma = sigma
+        self.k = k
+        self.s = s
+        self.is_noise = is_noise
+        self.fn = dataset
+        if not os.path.exists(os.path.join("list_counts", dataset)):
+            os.mkdir(os.path.join("list_counts", dataset))
+
+        self.D = D
+        self.d = d
+        self.cache_file = os.path.join("list_counts", dataset,
+                                       f"cache_{str(sigma)}_{self.delta}_{d}")
+        if self.is_noise:
+            self.cache_file += "_True"
+        try:
+            self.stats_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
+        except:
+            np.save(self.cache_file, self.stats_cache)
+        self.real_k = 1
+
+    def update_complete_cnts(self, k):
+        self.real_k = k
+
+    def cal_NP_bound(self, remain_to_assign, p_binom, reverse=False, early_stop=None):
+        """
+        return the lower bound (or upper bound if reverse is True) of classification result being y* in the
+        original distribution
+        :param s: the number of poisoned features
+        :param remain_to_assign: the p of classification result being y* in the poisoned distribution
+        :param p_binom: the pmf of the binomial distribution
+        :param reverse: return upper bound (True) or lower bound (False)
+        :param early_stop: if the return value is greater or equal to the early_stop value,
+        we just return the current value
+        :return: the lower bound (or upper bound if reverse is True)
+        """
+        if not reverse:
+            p_l = Fraction(0)
+            p_r = Fraction(1)
+            for _ in range(30):
+                mid = (p_l + p_r) / 2
+                x1 = norm.ppf(float(mid)) * self.sigma
+                if not self.is_noise:
+                    p = p_binom[0] * mid  # c = 0
+                    for i in range(1, self.k + 1):  # 1 <= c <= k
+                        xi = (x1 + (i * i - 1) * self.s / 2) / i
+                        p += p_binom[i] * norm.cdf(xi / self.sigma)
+                else:
+                    p = Fraction(0)
+                    for i in range(1, self.k + 2):  # 1 <= c <= k + 1
+                        xi = (x1 + (i * i - 1) * self.s / 2) / i
+                        p += p_binom[i - 1] * norm.cdf(xi / self.sigma)
+
+                if p > remain_to_assign:
+                    p_r = mid
+                else:
+                    p_l = mid
+
+            if not self.is_noise:
+                ret = p_l * p_binom[0]
+                x1 = norm.ppf(float(p_l)) * self.sigma
+                for i in range(1, self.k + 1):  # 1 <= c <= k
+                    ret += p_binom[i] * norm.cdf((x1 - (1 + i * i) / 2 * self.s) / i / self.sigma)
+            else:
+                ret = Fraction(0)
+                x1 = norm.ppf(float(p_l)) * self.sigma
+                for i in range(1, self.k + 2):  # 1 <= c <= k + 1
+                    ret += p_binom[i - 1] * norm.cdf((x1 - (1 + i * i) / 2 * self.s) / i / self.sigma)
+
+            return ret
+        else:
+            pass

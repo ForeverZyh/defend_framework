@@ -8,8 +8,8 @@ import tensorflow as tf
 
 from utils.data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor, \
     EmberDataPreProcessor, EMBER_DATASET, EmberPoisonDataPreProcessor, MNIST01DataPreprocessor, \
-    MNIST17LimitedDataPreprocessor
-from models import MNIST17Model, MNISTModel, IMDBTransformerModel, EmberModel, MNIST01Model
+    MNIST17LimitedDataPreprocessor, FMNISTDataPreprocessor, CIFARDataPreprocessor
+from models import MNISTModel, IMDBTransformerModel, EmberModel, CIFAR10Model
 from utils.train_utils import train_many
 from utils.cert_train_argments import get_arguments
 
@@ -66,25 +66,37 @@ if __name__ == "__main__":
             data_loader = MNIST17DataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = MNIST17DataPreprocessor(args)
-        model = MNIST17Model.MNIST17Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
+        model = MNISTModel.MNIST17Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     elif args.dataset == "mnist17_limited":
         if args.load_poison_dir is not None:
             data_loader = MNIST17LimitedDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = MNIST17LimitedDataPreprocessor(args)
-        model = MNIST17Model.MNIST17Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
+        model = MNISTModel.MNIST17Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     elif args.dataset == "mnist01":
         if args.load_poison_dir is not None:
             data_loader = MNIST01DataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = MNIST01DataPreprocessor(args)
-        model = MNIST01Model.MNIST01Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
+        model = MNISTModel.MNIST01Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     elif args.dataset == "mnist":
         if args.load_poison_dir is not None:
             data_loader = MNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = MNISTDataPreprocessor(args)
         model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes, lr=args.lr)
+    elif args.dataset == "fmnist":
+        if args.load_poison_dir is not None:
+            data_loader = FMNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
+        else:
+            data_loader = FMNISTDataPreprocessor(args)
+        model = MNISTModel.FMNISTModel(data_loader.n_features, data_loader.n_classes, lr=args.lr)
+    elif args.dataset == "cifar10":
+        if args.load_poison_dir is not None:
+            data_loader = CIFARDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
+        else:
+            data_loader = CIFARDataPreprocessor(args)
+        model = CIFAR10Model.CIFAR10Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     elif args.dataset == "imdb":
         if args.load_poison_dir is not None:
             data_loader = IMDBDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)

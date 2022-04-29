@@ -247,8 +247,10 @@ if __name__ == "__main__":
     parser.add_argument("--poisoned_ins_num_step", default=1, type=int,
                         help="the step of the poisoned instance number."
                         )
-    parser.add_argument("--k_upperbound", default=np.inf, type=int,
-                        help="the upper bound of k used to control the computation efficiency."
+    parser.add_argument("--delta_non_tight", default=0, type=float,
+                        help="the upper bound of probabilities that can induce incompleteness (non-tightness). "
+                             "Setting to 0 means tight certification, setting to 1e-4 can greatly improve efficiency but "
+                             "not seemingly decreasing certified accuracy."
                         )
     parser.add_argument("--parallel_precompute", default=None, type=int,
                         help="the number of manual split for the parallel. None for not parallel"
@@ -317,13 +319,24 @@ if __name__ == "__main__":
                 args.d = 1
             else:
                 raise NotImplementedError
-    elif args.dataset == "mnist":
+    elif args.dataset in ["mnist", "fmnist"]:
         args.D = 60000
         if args.noise_strategy is not None:
             if args.noise_strategy == "feature_flipping":
                 args.d = 28 * 28
             elif args.noise_strategy == "all_flipping":
                 args.d = 28 * 28 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
+    elif args.dataset == "cifar10":
+        args.D = 50000
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 32 * 32 * 3
+            elif args.noise_strategy == "all_flipping":
+                args.d = 32 * 32 * 3 + 1
             elif args.noise_strategy == "label_flipping":
                 args.d = 1
             else:
@@ -375,7 +388,7 @@ if __name__ == "__main__":
         if args.dataset in FEATURE_DATASET:
             Ia = Fraction(int(args.alpha * 100), 100)
             bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k,
-                                            args.poisoned_feat_num, args.eval_noise, args.k_upperbound)
+                                            args.poisoned_feat_num, args.eval_noise, args.delta_non_tight)
         elif args.dataset == "imdb":
             if args.noise_strategy == "sentence_select":
                 bound_cal = SelectBoundCalculator(None, args.dataset, args.D, args.L, args.k, args.l,
