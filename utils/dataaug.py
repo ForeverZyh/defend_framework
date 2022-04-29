@@ -79,14 +79,24 @@ class DataGenerator(keras.utils.Sequence):
 
 
 class MNISTDataGenerator(DataGenerator):
+    def __init__(self, X, y, batch_size, data_processor, no_eval_noise, shuffle=True):
+        super(MNISTDataGenerator, self).__init__(X, y, batch_size, shuffle=shuffle)
+        self.data_processor = data_processor
+        self.no_eval_noise = no_eval_noise
+
     def __getitem__(self, index):
         'Generate one batch of data'
         # Generate indexes of the batch
         X, y = super(MNISTDataGenerator, self).__getitem__(index)
         data = torch.Tensor(np.transpose(X, (0, 3, 1, 2)))
-        data = transforms.RandomCrop(28, 3)(data)
+        data = transforms.RandomCrop(28, 2)(data)
         data = transforms.RandomRotation(10)(data)
-        return np.vstack([np.transpose(data.numpy(), (0, 2, 3, 1)), X]), np.vstack([y, y])
+        data = np.transpose(data.numpy(), (0, 2, 3, 1))
+        if self.no_eval_noise:
+            return np.vstack([data, X]), np.vstack([y, y])
+            # return np.vstack([X + np.random.normal(0, 0.1, X.shape), X]), np.vstack([y, y])
+        else:
+            return np.vstack([self.data_processor.noise_data(X), data, X]), np.vstack([y, y, y])
 
 
 class EmberDataGenerator(DataGenerator):
