@@ -9,17 +9,20 @@ if __name__ == "__main__":
     parser.add_argument("--load_dir", type=str, help="parent dir for loading the folders")
     parser.add_argument("--save_file_name", default="temp", type=str, help="file name for saving the pdf")
     parser.add_argument("--load_folders", type=str, help="folders for loading the plot results")
+    parser.add_argument("--names", type=str, help="names for the plot results")
+    parser.add_argument("--title", type=str, help="the plot title")
     parser.add_argument("--poisoned_feat_num", default=None, type=int,
                         help="the poisoned feature number. None means all poisoned")
     parser.add_argument("--imprecise", action='store_true', help="draw imprecise figures (legacy)")
 
     args = parser.parse_args()
     folders = eval(args.load_folders)  # list[str]
+    names = eval(args.names)  # list[str]
+    assert len(folders) == len(names)
 
     fig, ax = plt.subplots()
-    ax.set_title("No Constrain on the Poisoned Feature Number" if args.poisoned_feat_num is None else
-                 f"Poisoned Feature Number = {args.poisoned_feat_num}")
-    ax.set_xlabel('Poisoned Instance Number')
+    # ax.set_title(args.title)
+    ax.set_xlabel('Certified Radius')
     ax.set_ylabel('Certified Accuracy')
     if args.imprecise:
         x_max = 0
@@ -56,8 +59,8 @@ if __name__ == "__main__":
                 if x[-1] != x_max:
                     x.append(x_max)
                     y.append(0)
-                ax.plot(x, y, label=folder_, color=colors[i])
-                ax.plot(x, [y[0]] * len(x), color=colors[i], linestyle='dashed', linewidth=0.5)
+                ax.plot(x, y, color=colors[i], label=names[i])
+                ax.axhline(y=y[0], color=colors[i], linestyle='dashed', linewidth=0.5)
     else:
         x_max = 0
         prop_cycle = plt.rcParams['axes.prop_cycle']
@@ -76,10 +79,10 @@ if __name__ == "__main__":
                 x.append(x[-1] + 1)
                 y.append(0)
 
-                if x[0] == -1:
+                if x[0] < -0.5:
                     x = x[1:]
                     y = y[1:]
-                ax.plot(x, y, label=folder_, color=colors[i])
+                ax.plot(x, y, color=colors[i], label=names[i])
                 ax.axhline(y=y[0], color=colors[i], linestyle='dashed', linewidth=0.5)
                 i += 1
                 x_max = max(x_max, x[-1])

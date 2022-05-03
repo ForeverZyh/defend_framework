@@ -211,10 +211,13 @@ def cal_statistics(res, bags, alpha, n_classes, cache, s):
         if majority == res[i, -1]:
             if p_a > p_b:
                 cor_cnt += 1
-                auc += cache[(s, top_1, top_2, bags)]
-                radius.append(cache[(s, top_1, top_2, bags)])
+                if cache[(s, top_1, top_2, bags)] >= 0:
+                    auc += cache[(s, top_1, top_2, bags)]
+                    radius.append(cache[(s, top_1, top_2, bags)])
+                else:
+                    radius.append(0)
             else:
-                radius.append(0)
+                radius.append(-1)
         else:
             radius.append(-1)
 
