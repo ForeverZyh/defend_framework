@@ -122,7 +122,10 @@ class DataProcessor:
                             ret_X = categorized
 
                     pre_ret_X = ret_X
-                    ret_X = self.noise_data(ret_X)
+                    if self.dataset == "cifar10-02":
+                        ret_X = self.noise_data(ret_X, shape=list(ret_X.shape[:-1]) + [1])
+                    else:
+                        ret_X = self.noise_data(ret_X)
                     if self.dataset == "ember_limited":  # protect other features
                         ret_X = ret_X * self.limit_mask + pre_ret_X * (1 - self.limit_mask)
                 if self.noise_strategy in ["label_flipping", "all_flipping"]:
@@ -171,7 +174,10 @@ class DataProcessor:
                 if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
                         pre_ret_X = ret_X
-                        ret_X = self.noise_data(ret_X, alpha=self.test_alpha, shape=ret_X.shape[1:])
+                        if self.dataset == "cifar10-02":
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha, shape=list(ret_X.shape[1:-1]) + [1])
+                        else:
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha, shape=ret_X.shape[1:])
                         if self.dataset == "ember_limited":  # protect other features
                             ret_X = ret_X * self.limit_mask + pre_ret_X * (1 - self.limit_mask)
                     if self.noise_strategy == "RAB_gaussian":
@@ -192,7 +198,10 @@ class DataProcessor:
                 if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
                         pre_ret_X = ret_X
-                        ret_X = self.noise_data(ret_X, alpha=self.test_alpha)
+                        if self.dataset == "cifar10-02":
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha, shape=list(ret_X.shape[:-1]) + [1])
+                        else:
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha)
                         if self.dataset == "ember_limited":  # protect other features
                             ret_X = ret_X * self.limit_mask + pre_ret_X * (1 - self.limit_mask)
                     if self.noise_strategy == "RAB_gaussian":
@@ -464,16 +473,10 @@ class CIFAR02DataPreprocessor(DataPreprocessor):
         self.x_train = x_train / 255
         self.x_test = x_test / 255
         if args.noise_strategy in ["label_flipping", "all_flipping"]:
-            raise NotImplementedError
+            assert args.K == 9
         if args.noise_strategy in ["feature_flipping", "all_flipping"]:
-            new_K = int(np.power(args.K + 1, 1 / 3)) - 1
-            assert abs((new_K + 1) ** 3 - args.K - 1) <= 1e-3
-            self.x_train = np.minimum(np.floor(self.x_train * (new_K + 1)), new_K)
-            self.x_test = np.minimum(np.floor(self.x_test * (new_K + 1)), new_K)
-            self.x_train = (self.x_train[:, :, :, 0] * (new_K + 1) * (new_K + 1) +
-                            self.x_train[:, :, :, 1] * (new_K + 1) + self.x_train[:, :, :, 2]) / args.K
-            self.x_test = (self.x_test[:, :, :, 0] * (new_K + 1) * (new_K + 1) +
-                           self.x_test[:, :, :, 1] * (new_K + 1) + self.x_test[:, :, :, 2]) / args.K
+            self.x_train = np.minimum(np.floor(self.x_train * (args.K + 1)) / args.K, 1)
+            self.x_test = np.minimum(np.floor(self.x_test * (args.K + 1)) / args.K, 1)
 
         self.data_processor = self.build_processor(self.x_train, self.y_train, args)
         print('x_train shape:', x_train.shape, self.y_train.shape)

@@ -157,7 +157,7 @@ class CIFAR10Model(Model):
         super(CIFAR10Model, self).__init__(n_features, n_classes, lr)
 
     def build_model(self):
-        model = resnet_v1(self.input_shape, 20)
+        model = resnet_v1(self.input_shape, 20, num_classes=self.n_classes)
         model.compile(loss='categorical_crossentropy',
                       optimizer=Adam(lr=lr_schedule(0)),
                       metrics=['accuracy'])
