@@ -1,3 +1,4 @@
+import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 
 from models.Model import Model
@@ -27,7 +28,7 @@ class ContagioModel(Model):
         self.model.fit(X, y)
 
     def evaluate(self, x_test, y_test):
-        prediction_label = self.model.predict(x_test)
+        prediction_label = np.argmax(self.model.predict(x_test), axis=-1)
         score = self.model.score(x_test, y_test)
         print('Test accuracy:', score)
 

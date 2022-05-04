@@ -366,6 +366,17 @@ if __name__ == "__main__":
                 args.d = 1
             else:
                 raise NotImplementedError
+    elif args.dataset == "contagio":
+        args.D = 6000
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 135
+            elif args.noise_strategy == "all_flipping":
+                args.d = 135 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
     else:
         raise NotImplementedError
 

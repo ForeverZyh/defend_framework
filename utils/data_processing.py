@@ -539,7 +539,7 @@ class ContagioDataPreProcessor(DataPreprocessor):
         # Load benign
         gw = np.load(
             # os.path.join(constants.SAVE_FILES_DIR, gw_file),
-            os.path.join('data/', gw_file),
+            os.path.join(args.contagio_data_dir, gw_file),
             allow_pickle=True
         ).item()
 
