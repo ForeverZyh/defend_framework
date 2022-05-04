@@ -215,11 +215,11 @@ def cal_statistics(res, bags, alpha, n_classes, cache, s):
                     auc += cache[(s, top_1, top_2, bags)]
                     radius.append(cache[(s, top_1, top_2, bags)])
                 else:
-                    radius.append(0)
+                    radius.append(-1)
             else:
-                radius.append(-1)
+                radius.append(-2)
         else:
-            radius.append(-1)
+            radius.append(-2)
 
     radius.sort()
     mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
