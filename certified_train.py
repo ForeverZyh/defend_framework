@@ -8,7 +8,8 @@ import tensorflow as tf
 
 from utils.data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor, \
     EmberDataPreProcessor, EMBER_DATASET, EmberPoisonDataPreProcessor, MNIST01DataPreprocessor, \
-    MNIST17LimitedDataPreprocessor, FMNISTDataPreprocessor, CIFARDataPreprocessor, ContagioDataPreProcessor
+    MNIST17LimitedDataPreprocessor, FMNISTDataPreprocessor, CIFARDataPreprocessor, ContagioDataPreProcessor, \
+    CIFAR02DataPreprocessor
 from models import MNISTModel, IMDBTransformerModel, EmberModel, CIFAR10Model, ContagioModel
 from utils.train_utils import train_many
 from utils.cert_train_argments import get_arguments
@@ -96,6 +97,12 @@ if __name__ == "__main__":
             data_loader = CIFARDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = CIFARDataPreprocessor(args)
+        model = CIFAR10Model.CIFAR10Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
+    elif args.dataset == "cifar10-02":
+        if args.load_poison_dir is not None:
+            data_loader = CIFAR02DataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
+        else:
+            data_loader = CIFAR02DataPreprocessor(args)
         model = CIFAR10Model.CIFAR10Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
     elif args.dataset == "imdb":
         if args.load_poison_dir is not None:

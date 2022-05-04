@@ -3,7 +3,7 @@ from tensorflow import keras
 from tqdm import trange
 import os
 
-from utils.dataaug import DataGeneratorForMNIST, MNISTDataGenerator, EmberDataGenerator
+from utils.dataaug import DataGeneratorForMNIST, MNISTDataGenerator, EmberDataGenerator, CIFARDataGenerator
 from utils import EMBER_DATASET, IMAGE_DATASET
 
 
@@ -24,7 +24,10 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
         y = keras.utils.to_categorical(y, data_loader.n_classes)
         if args.data_aug:
             if args.dataset in IMAGE_DATASET:
-                datagen = MNISTDataGenerator(X, y, args.batch_size, data_loader.data_processor, args.no_eval_noise)
+                if args.dataset == "cifar10":
+                    datagen = CIFARDataGenerator(X, y, args.batch_size, data_loader.data_processor, args.no_eval_noise)
+                else:
+                    datagen = MNISTDataGenerator(X, y, args.batch_size, data_loader.data_processor, args.no_eval_noise)
             elif args.dataset in EMBER_DATASET:
                 datagen = EmberDataGenerator(X, y, args.batch_size, data_loader.data_processor, args.no_eval_noise)
         y_test = keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes)
@@ -45,10 +48,15 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
         elif args.noise_strategy in ["RAB_gaussian", "RAB_uniform"]:
             x_test = data_loader.data_processor.minmax.transform(x_test)
 
+        # from PIL import Image
+        # img = Image.fromarray(np.int8(X[0, :, :, 0] * 255))
+        # img.show()
         if datagen is not None:
-            model.fit_generator(datagen, args.epochs)
+            # X_test = data_loader.data_processor.process_test(x_test, args.fix_noise)
+            model.fit_generator(datagen, args.epochs, x_test, y_test)
         else:
-            model.fit(X, y, args.batch_size, args.epochs)
+            # X_test = data_loader.data_processor.process_test(x_test, args.fix_noise)
+            model.fit(X, y, args.batch_size, args.epochs, x_test, y_test)
 
         if args.dataset in EMBER_DATASET and args.noise_strategy is None:
             prediction_label = model.evaluate(data_loader.data_processor.normal.transform(x_test), y_test)

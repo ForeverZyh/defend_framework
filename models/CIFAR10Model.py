@@ -161,7 +161,7 @@ class CIFAR10Model(Model):
         model.compile(loss='categorical_crossentropy',
                       optimizer=Adam(lr=lr_schedule(0)),
                       metrics=['accuracy'])
-        model.summary()
+        # model.summary()
         lr_scheduler = LearningRateScheduler(lr_schedule)
 
         lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1),
