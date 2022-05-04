@@ -19,8 +19,6 @@ def get_arguments():
     parser.add_argument("--fix_noise", action='store_true', help="whether to fix noise when testing")
 
     # poisoning defence parameters
-    parser.add_argument('--k', action='store', default=None, type=int,
-                        help='number of (expected) examples in a bag')
     parser.add_argument("--select_strategy", default=None,
                         choices=["bagging_replace", "bagging_wo_replace", "binomial"],
                         help="selection strategy")
@@ -28,18 +26,25 @@ def get_arguments():
                         choices=["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian", "RAB_uniform"
                             , "sentence_select"],
                         help="noise strategy")
+    # bagging
+    parser.add_argument('--k', action='store', default=None, type=int,
+                        help='number of (expected) examples in a bag')
+    # Flipping
     parser.add_argument('--K', action='store', default=2, type=int,
                         help='number of bins for discretization')
     parser.add_argument('--alpha', action='store', default=0.8, type=float,
                         help='probability of the feature remains its original value')
     parser.add_argument('--test_alpha', action='store', default=None, type=float,
                         help='if set, use this alpha for test time noise')
+    # Gaussian
     parser.add_argument('--sigma', action='store', default=1, type=float,
                         help='sigma for Gaussian noise')
+    # Uniform[a,b]
     parser.add_argument('--a', action='store', default=0, type=float,
                         help='low for uniform noise')
     parser.add_argument('--b', action='store', default=1, type=float,
                         help='high for uniform noise')
+    # NLP inserted poisoning word triggers
     parser.add_argument('--l', action='store', default=100, type=int,
                         help='selected segment length from the input sentence')
     parser.add_argument('--L', action='store', default=200, type=int,
@@ -58,5 +63,5 @@ def get_arguments():
     parser.add_argument("--res_save_dir", default=None, type=str, help="dir for saving the aggregate results")
     parser.add_argument("--exp_name", default=None, type=str, help="name for this experiment")
     parser.add_argument("--ember_data_dir", default="/tmp", type=str, help="dir to store cached ember dataset")
-
+    parser.add_argument("--contagio_data_dir", default="/tmp", type=str, help="dir to store cached contagio dataset")
     return parser

@@ -5,10 +5,12 @@ import numpy as np
 from tensorflow.keras.datasets import mnist, imdb, cifar10, fashion_mnist
 from tensorflow import keras
 import ember
+import pandas as pd
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer, MinMaxScaler
 
 from utils.ember_feature_utils import load_features
-from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET
+from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET, CONTAGIO_DATASET
 
 
 class DataProcessor:
@@ -50,7 +52,7 @@ class DataProcessor:
                     if self.test_alpha is None:
                         self.test_alpha = self.alpha
                     if noise_strategy in ["feature_flipping", "all_flipping"]:
-                        if dataset in EMBER_DATASET:
+                        if dataset in EMBER_DATASET or dataset in CONTAGIO_DATASET:
                             self.kbin = KBinsDiscretizer(n_bins=self.K + 1, strategy='uniform', encode='ordinal')
                             self.kbin.fit(self.X)
                             if dataset == "ember_limited":
@@ -108,7 +110,7 @@ class DataProcessor:
         if self.noise_strategy is not None:
             if self.dataset in FEATURE_DATASET:
                 if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                    if self.dataset in EMBER_DATASET:
+                    if self.dataset in EMBER_DATASET or self.dataset in CONTAGIO_DATASET:
                         categorized = self.kbin.transform(ret_X) / self.K
                         if self.dataset == "ember_limited":
                             ret_X[:, self.limit_id] = categorized[:, self.limit_id]
@@ -503,6 +505,67 @@ class EmberPoisonDataPreProcessor(DataPreprocessor):
         self.y_test = np.ones(self.x_test.shape[0])
         if args.K != 1 and args.noise_strategy in ["all_flipping", "label_flipping"]:
             raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor with all_flipping.")
+
+        self.n_features = self.x_train.shape[1]
+        self.n_classes = 2
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', self.x_train.shape, self.y_train.shape)
+        print(self.x_train.shape[0], 'train samples')
+        print(self.x_test.shape[0], 'test samples')
+
+
+class ContagioDataPreProcessor(DataPreprocessor):
+    def __init__(self, args):
+        super(ContagioDataPreProcessor, self).__init__()
+        mw_file = 'ogcontagio_mw.npy'
+        gw_file = 'ogcontagio_gw.npy'
+
+        # Load malicious
+        mw = np.load(
+            # os.path.join(constants.SAVE_FILES_DIR, mw_file),
+            os.path.join(args.contagio_data_dir, mw_file),
+            allow_pickle=True
+        ).item()
+
+        mwdf = pd.DataFrame(mw)
+        mwdf = mwdf.transpose()
+        mwdf['class'] = [True] * mwdf.shape[0]
+        mwdf.index.name = 'filename'
+        mwdf = mwdf.reset_index()
+
+        train_mw, test_mw = train_test_split(mwdf, test_size=0.4, random_state=42)
+
+        # Load benign
+        gw = np.load(
+            # os.path.join(constants.SAVE_FILES_DIR, gw_file),
+            os.path.join(args.contagio_data_dir, gw_file),
+            allow_pickle=True
+        ).item()
+
+        gwdf = pd.DataFrame(gw)
+        gwdf = gwdf.transpose()
+        gwdf['class'] = [False] * gwdf.shape[0]
+        gwdf.index.name = 'filename'
+        gwdf = gwdf.reset_index()
+
+        train_gw, test_gw = train_test_split(gwdf, test_size=0.4, random_state=42)
+
+        # Merge dataframes
+        train_df = pd.concat([train_mw, train_gw])
+        test_df = pd.concat([test_mw, test_gw])
+
+        # Transform to numpy
+        self.y_train = train_df['class'].to_numpy()
+        self.y_test = test_df['class'].to_numpy()
+
+        # x_train_filename = train_df['filename'].to_numpy()
+        # x_test_filename = test_df['filename'].to_numpy()
+
+        self.x_train = train_df.drop(columns=['class', 'filename']).to_numpy()
+        self.x_test = test_df.drop(columns=['class', 'filename']).to_numpy()
+        self.x_train = self.x_train.astype(dtype='float64')
+        self.x_test = self.x_test.astype(dtype='float64')
 
         self.n_features = self.x_train.shape[1]
         self.n_classes = 2

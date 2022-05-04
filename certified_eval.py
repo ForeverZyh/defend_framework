@@ -124,7 +124,6 @@ def get_pa_pb(top_1, top_2, bags, alpha, n_classes):
 
 def precompute_bag(res, conf, ex_in_bag, D):
     # res.shape: (n_examples, n_classes + 1)
-    ret = np.ones(res.shape[0])
     alpha = (1 - conf) / res.shape[0]
     n_classes = res.shape[1] - 1
     bags = np.sum(res[0][:-1])
@@ -139,12 +138,11 @@ def precompute_bag(res, conf, ex_in_bag, D):
                 D * (1 - np.power(1 - (p_a - p_b) / 2, 1.0 / ex_in_bag)) - 1)
 
     # compute stats
-    cal_statistics(res, bags, alpha, n_classes, stats_cache, 0)
+    return cal_statistics(res, bags, alpha, n_classes, stats_cache, 0)
 
 
 def precompute_binary(res, conf, bound_cal: BoundCalculator, parallel_num=None, parallel_id=None):
     # res.shape: (n_examples, n_classes + 1)
-    ret = np.ones(res.shape[0])
     alpha = (1 - conf) / res.shape[0]
     n_classes = res.shape[1] - 1
     assert n_classes == 2
@@ -163,12 +161,11 @@ def precompute_binary(res, conf, bound_cal: BoundCalculator, parallel_num=None, 
     # compute stats 
     if parallel_num is not None:
         return
-    cal_statistics(res, bags, alpha, n_classes, bound_cal.stats_cache, bound_cal.s)
+    return cal_statistics(res, bags, alpha, n_classes, bound_cal.stats_cache, bound_cal.s)
 
 
 def precompute(res, conf, bound_cal: BoundCalculator, parallel_num=None, parallel_id=None):
     # res.shape: (n_examples, n_classes + 1)
-    ret = np.ones(res.shape[0])
     alpha = (1 - conf) / res.shape[0]
     n_classes = res.shape[1] - 1
     assert n_classes > 2
@@ -199,7 +196,7 @@ def precompute(res, conf, bound_cal: BoundCalculator, parallel_num=None, paralle
     # compute stats 
     if parallel_num is not None:
         return
-    cal_statistics(res, bags, alpha, n_classes, bound_cal.stats_cache, bound_cal.s)
+    return cal_statistics(res, bags, alpha, n_classes, bound_cal.stats_cache, bound_cal.s)
 
 
 def cal_statistics(res, bags, alpha, n_classes, cache, s):
@@ -214,16 +211,20 @@ def cal_statistics(res, bags, alpha, n_classes, cache, s):
         if majority == res[i, -1]:
             if p_a > p_b:
                 cor_cnt += 1
-                auc += cache[(s, top_1, top_2, bags)]
-                radius.append(cache[(s, top_1, top_2, bags)])
+                if cache[(s, top_1, top_2, bags)] >= 0:
+                    auc += cache[(s, top_1, top_2, bags)]
+                    radius.append(cache[(s, top_1, top_2, bags)])
+                else:
+                    radius.append(0)
             else:
-                radius.append(0)
+                radius.append(-1)
         else:
-            radius.append(0)
+            radius.append(-1)
 
     radius.sort()
     mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
     print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
+    return radius
 
 
 if __name__ == "__main__":
@@ -258,7 +259,6 @@ if __name__ == "__main__":
     parser.add_argument("--parallel_precompute_id", default=None, type=int,
                         help="the manual split id"
                         )
-    parser.add_argument("--precompute_only", action='store_true', help="only to compute the stats not drawing")
     parser.add_argument("--draw_only", action='store_true', help="only to draw not precomputing the stats")
     parser.add_argument("--eval_noise", action='store_true', help="evaluate on noise prediction (backdoor attacks)")
 
@@ -271,7 +271,7 @@ if __name__ == "__main__":
         assert args.parallel_precompute_id is not None and 0 <= args.parallel_precompute_id < args.parallel_precompute
     poisoned_ins_num_range = range(args.poisoned_ins_num_st, args.poisoned_ins_num_en + 1, args.poisoned_ins_num_step)
     cache_filename = os.path.join(args.load_dir, args.cache_filename)
-    if os.path.exists(cache_filename + ".npy") and not args.precompute_only:
+    if os.path.exists(cache_filename + ".npy"):
         respond = input("Experiment already exists, type [O] to overwrite, type [R] to resume")
         if respond == "O":
             cache = dict()
@@ -366,21 +366,31 @@ if __name__ == "__main__":
                 args.d = 1
             else:
                 raise NotImplementedError
+    elif args.dataset == "contagio":
+        args.D = 6000
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 135
+            elif args.noise_strategy == "all_flipping":
+                args.d = 135 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
     else:
         raise NotImplementedError
 
     if args.select_strategy == "bagging_replace" and (args.noise_strategy is None or args.poisoned_feat_num is None):
         if not args.draw_only:
-            precompute_bag(res, args.confidence, args.k, args.D)
-        if args.precompute_only:
-            exit(0)
-        for poison_ins_num in poisoned_ins_num_range:
-            if poison_ins_num in cache:
-                ret = cache[poison_ins_num]
-            else:
-                ret = get_abstain_bagging_replace(res, args.confidence, args.k, poison_ins_num, args.D)
-                cache[poison_ins_num] = ret
-                np.save(cache_filename, cache)
+            np.save(cache_filename, precompute_bag(res, args.confidence, args.k, args.D))
+        else:
+            for poison_ins_num in poisoned_ins_num_range:
+                if poison_ins_num in cache:
+                    ret = cache[poison_ins_num]
+                else:
+                    ret = get_abstain_bagging_replace(res, args.confidence, args.k, poison_ins_num, args.D)
+                    cache[poison_ins_num] = ret
+                    np.save(cache_filename, cache)
 
             # output(ret)
     elif args.select_strategy == "bagging_replace" and args.noise_strategy in ["feature_flipping", "label_flipping",
@@ -402,21 +412,22 @@ if __name__ == "__main__":
 
         if not args.draw_only:
             if res.shape[1] - 1 == 2:  # n_classes == 2
-                precompute_binary(res, args.confidence, bound_cal, parallel_num=args.parallel_precompute,
-                                  parallel_id=args.parallel_precompute_id)
+                np.save(cache_filename,
+                        precompute_binary(res, args.confidence, bound_cal, parallel_num=args.parallel_precompute,
+                                          parallel_id=args.parallel_precompute_id))
             else:
-                precompute(res, args.confidence, bound_cal, parallel_num=args.parallel_precompute,
-                           parallel_id=args.parallel_precompute_id)
-        if args.precompute_only:
-            exit(0)
-        for poison_ins_num in poisoned_ins_num_range:
-            if poison_ins_num in cache:
-                ret = cache[poison_ins_num]
-            else:
-                ret = get_abstain_bagging_replace_feature_flip(res, args.confidence, poison_ins_num,
-                                                               args.poisoned_feat_num, bound_cal)
-                cache[poison_ins_num] = ret
-                np.save(cache_filename, cache)
+                np.save(cache_filename,
+                        precompute(res, args.confidence, bound_cal, parallel_num=args.parallel_precompute,
+                                   parallel_id=args.parallel_precompute_id))
+        else:
+            for poison_ins_num in poisoned_ins_num_range:
+                if poison_ins_num in cache:
+                    ret = cache[poison_ins_num]
+                else:
+                    ret = get_abstain_bagging_replace_feature_flip(res, args.confidence, poison_ins_num,
+                                                                   args.poisoned_feat_num, bound_cal)
+                    cache[poison_ins_num] = ret
+                    np.save(cache_filename, cache)
 
             # output(ret)
     else:
