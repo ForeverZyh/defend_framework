@@ -341,6 +341,17 @@ if __name__ == "__main__":
                 args.d = 1
             else:
                 raise NotImplementedError
+    elif args.dataset == "cifar10-02":
+        args.D = 10000
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 32 * 32
+            elif args.noise_strategy == "all_flipping":
+                args.d = 32 * 32 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
     elif args.dataset == "imdb":
         args.D = 25000
         args.d = None
