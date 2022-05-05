@@ -79,11 +79,21 @@ if __name__ == "__main__":
                 x.append(x[-1] + 1)
                 y.append(0)
 
-                if x[0] < -0.5:
+                for j in range(len(x)):
+                    if x[j] < -1:
+                        continue
+                    else:
+                        dash_y = y[j]
+                        break
+
+                while x[0] < -0.5:
                     x = x[1:]
                     y = y[1:]
+                if x[0] != 0:
+                    y = [y[0]] + y
+                    x = [0] + x
                 ax.plot(x, y, color=colors[i], label=names[i])
-                ax.axhline(y=y[0], color=colors[i], linestyle='dashed', linewidth=0.5)
+                ax.axhline(y=dash_y, color=colors[i], linestyle='dashed', linewidth=0.5)
                 i += 1
                 x_max = max(x_max, x[-1])
             else:

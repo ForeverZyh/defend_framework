@@ -215,11 +215,11 @@ def cal_statistics(res, bags, alpha, n_classes, cache, s):
                     auc += cache[(s, top_1, top_2, bags)]
                     radius.append(cache[(s, top_1, top_2, bags)])
                 else:
-                    radius.append(0)
+                    radius.append(-1)
             else:
-                radius.append(-1)
+                radius.append(-2)
         else:
-            radius.append(-1)
+            radius.append(-2)
 
     radius.sort()
     mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
@@ -337,6 +337,17 @@ if __name__ == "__main__":
                 args.d = 32 * 32 * 3
             elif args.noise_strategy == "all_flipping":
                 args.d = 32 * 32 * 3 + 1
+            elif args.noise_strategy == "label_flipping":
+                args.d = 1
+            else:
+                raise NotImplementedError
+    elif args.dataset == "cifar10-02":
+        args.D = 10000
+        if args.noise_strategy is not None:
+            if args.noise_strategy == "feature_flipping":
+                args.d = 32 * 32
+            elif args.noise_strategy == "all_flipping":
+                args.d = 32 * 32 + 1
             elif args.noise_strategy == "label_flipping":
                 args.d = 1
             else:

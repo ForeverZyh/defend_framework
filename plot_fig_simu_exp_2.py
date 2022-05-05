@@ -37,9 +37,12 @@ if __name__ == "__main__":
             x.append(x[-1] + 1)
             y.append(0)
 
-            if x[0] < -0.5:
+            while x[0] < -0.5:
                 x = x[1:]
                 y = y[1:]
+            if x[0] != 0:
+                y = [y[0]] + y
+                x = [0] + x
             ax.plot(x, y, color="k", label=names[i], alpha=al)
             al *= 0.6
             # ax.axhline(y=y[0], color=colors[i], linestyle='dashed', linewidth=0.5)

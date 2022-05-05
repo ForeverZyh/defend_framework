@@ -27,10 +27,10 @@ class Model(ABC):
     def load(self, save_path, file_name):
         self.model = load_model(os.path.join(save_path, file_name + '.h5'))
 
-    def fit_generator(self, datagen, epochs, X_val, y_val):
+    def fit_generator(self, datagen, epochs):
         self.model.fit(datagen, epochs=epochs, verbose=0, workers=4, callbacks=self.callback)
 
-    def fit(self, X, y, batch_size, epochs, X_val, y_val):
+    def fit(self, X, y, batch_size, epochs):
         self.model.fit(X, y, batch_size=batch_size, epochs=epochs, verbose=0, workers=4, callbacks=self.callback)
 
     def evaluate(self, x_test, y_test):

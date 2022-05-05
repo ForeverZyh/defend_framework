@@ -3,7 +3,7 @@ from tensorflow import keras
 from tqdm import trange
 import os
 
-from utils.dataaug import DataGeneratorForMNIST, MNISTDataGenerator, EmberDataGenerator
+from utils.dataaug import DataGeneratorForMNIST, MNISTDataGenerator, EmberDataGenerator, CIFARDataGenerator
 from utils import EMBER_DATASET, IMAGE_DATASET
 
 
@@ -24,7 +24,10 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
         y = keras.utils.to_categorical(y, data_loader.n_classes)
         if args.data_aug:
             if args.dataset in IMAGE_DATASET:
-                datagen = MNISTDataGenerator(X, y, args.batch_size, data_loader.data_processor, args.no_eval_noise)
+                if args.dataset == "cifar10":
+                    datagen = CIFARDataGenerator(X, y, args.batch_size, data_loader.data_processor, args.no_eval_noise)
+                else:
+                    datagen = MNISTDataGenerator(X, y, args.batch_size, data_loader.data_processor, args.no_eval_noise)
             elif args.dataset in EMBER_DATASET:
                 datagen = EmberDataGenerator(X, y, args.batch_size, data_loader.data_processor, args.no_eval_noise)
         y_test = keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes)

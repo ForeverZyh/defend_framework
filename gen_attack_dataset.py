@@ -7,10 +7,10 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
-from utils.data_processing import MNISTDataPreprocessor, MNIST17DataPreprocessor, MNIST01DataPreprocessor
-from models.MNISTModel import MNISTModel
-from models.MNIST17Model import MNIST17Model
-from models.MNIST01Model import MNIST01Model
+from utils.data_processing import MNISTDataPreprocessor, MNIST17DataPreprocessor, MNIST01DataPreprocessor, \
+    CIFAR02DataPreprocessor
+from models.MNISTModel import MNISTModel, MNIST17Model, MNIST01Model
+from models.CIFAR10Model import CIFAR10Model
 from utils.train_utils import train_single
 from attack.BadNetAttack import BadNetAttackLabel, BadNetAttackNoLabel
 from utils.cert_train_argments import get_arguments
@@ -82,6 +82,9 @@ if __name__ == "__main__":
     elif args.dataset == "mnist01":
         DataPreprocessor_type = MNIST01DataPreprocessor
         Model_type = MNIST01Model
+    elif args.dataset == "cifar10-02":
+        DataPreprocessor_type = CIFAR02DataPreprocessor
+        Model_type = CIFAR10Model
     else:
         raise NotImplementedError
 

@@ -86,9 +86,13 @@ class DataProcessor:
             else:
                 raise NotImplementedError
 
-    def noise_data(self, ret_X):
-        mask = np.random.random(ret_X.shape) < self.alpha
-        delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
+    def noise_data(self, ret_X, alpha=None, shape=None):
+        if alpha is None:
+            alpha = self.alpha
+        if shape is None:
+            shape = ret_X.shape
+        mask = np.random.random(shape) < alpha
+        delta = np.random.randint(1, self.K + 1, shape) / self.K
         ret_X += (1 - mask) * delta
         ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
         return ret_X
@@ -118,7 +122,10 @@ class DataProcessor:
                             ret_X = categorized
 
                     pre_ret_X = ret_X
-                    ret_X = self.noise_data(ret_X)
+                    if self.dataset == "cifar10-02":
+                        ret_X = self.noise_data(ret_X, shape=list(ret_X.shape[:-1]) + [1])
+                    else:
+                        ret_X = self.noise_data(ret_X)
                     if self.dataset == "ember_limited":  # protect other features
                         ret_X = ret_X * self.limit_mask + pre_ret_X * (1 - self.limit_mask)
                 if self.noise_strategy in ["label_flipping", "all_flipping"]:
@@ -166,11 +173,11 @@ class DataProcessor:
             if self.noise_strategy is not None:
                 if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                        mask = np.random.random(ret_X.shape[1:]) < self.test_alpha  # fix the noise for each example
-                        delta = np.random.randint(1, self.K + 1, ret_X.shape[1:]) / self.K
                         pre_ret_X = ret_X
-                        ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
-                        ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+                        if self.dataset == "cifar10-02":
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha, shape=list(ret_X.shape[1:-1]) + [1])
+                        else:
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha, shape=ret_X.shape[1:])
                         if self.dataset == "ember_limited":  # protect other features
                             ret_X = ret_X * self.limit_mask + pre_ret_X * (1 - self.limit_mask)
                     if self.noise_strategy == "RAB_gaussian":
@@ -190,11 +197,11 @@ class DataProcessor:
             if self.noise_strategy is not None:
                 if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                        mask = np.random.random(ret_X.shape) < self.test_alpha
-                        delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
                         pre_ret_X = ret_X
-                        ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
-                        ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+                        if self.dataset == "cifar10-02":
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha, shape=list(ret_X.shape[:-1]) + [1])
+                        else:
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha)
                         if self.dataset == "ember_limited":  # protect other features
                             ret_X = ret_X * self.limit_mask + pre_ret_X * (1 - self.limit_mask)
                     if self.noise_strategy == "RAB_gaussian":
@@ -425,6 +432,41 @@ class CIFARDataPreprocessor(DataPreprocessor):
         (x_train, self.y_train), (x_test, self.y_test) = cifar10.load_data()
         self.y_test = np.reshape(self.y_test, -1)
         self.y_train = np.reshape(self.y_train, -1)
+
+        x_train = x_train.astype('float32')
+        x_test = x_test.astype('float32')
+        self.x_train = x_train / 255
+        self.x_test = x_test / 255
+        if args.noise_strategy in ["label_flipping", "all_flipping"]:
+            assert args.K == 9
+        if args.noise_strategy in ["feature_flipping", "all_flipping"]:
+            self.x_train = np.minimum(np.floor(self.x_train * (args.K + 1)) / args.K, 1)
+            self.x_test = np.minimum(np.floor(self.x_test * (args.K + 1)) / args.K, 1)
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', x_train.shape, self.y_train.shape)
+        print(x_train.shape[0], 'train samples')
+        print(x_test.shape[0], 'test samples')
+
+
+class CIFAR02DataPreprocessor(DataPreprocessor):
+    def __init__(self, args):
+        super(CIFAR02DataPreprocessor, self).__init__()
+        # input image dimensions
+        img_rows, img_cols = 32, 32
+
+        self.n_classes = 2
+        self.n_features = (img_rows, img_cols, 3)
+
+        (x_train, self.y_train), (x_test, self.y_test) = cifar10.load_data()
+        self.y_test = np.reshape(self.y_test, -1)
+        self.y_train = np.reshape(self.y_train, -1)
+        x_train = x_train[(self.y_train == 0) | (self.y_train == 2)]
+        self.y_train = self.y_train[(self.y_train == 0) | (self.y_train == 2)]
+        self.y_train = self.y_train > 0
+        x_test = x_test[(self.y_test == 0) | (self.y_test == 2)]
+        self.y_test = self.y_test[(self.y_test == 0) | (self.y_test == 2)]
+        self.y_test = self.y_test > 0
 
         x_train = x_train.astype('float32')
         x_test = x_test.astype('float32')

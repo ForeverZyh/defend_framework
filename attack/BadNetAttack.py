@@ -35,10 +35,14 @@ class BadNetAttackLabel(Attack):
         self.poisoned_feat_num = poisoned_feat_num
         assert len(attack_targets) == self.data_processor.n_classes
         # selected features that are not 1 (and then set them to 1)
-        selected_feature = self.data_processor.x_train[0] < 1
+        selected_feature_ = np.any(self.data_processor.x_train[0] < 1, axis=-1)
         for i in range(1, len(self.data_processor.x_train)):
-            selected_feature = selected_feature & (self.data_processor.x_train[i] < 1)
-        selected_feature = np.array(list(zip(*np.where(selected_feature))))  # np.array of indices
+            selected_feature_ = selected_feature_ & np.any(self.data_processor.x_train[i] < 1, axis=-1)
+        selected_feature = list(zip(*np.where(selected_feature_)))  # np.array of indices
+        bad_feature = list(zip(*np.where(1 - selected_feature_)))
+        if len(selected_feature) < self.poisoned_feat_num:
+            selected_feature += bad_feature[:self.poisoned_feat_num - len(selected_feature)]
+        selected_feature = np.array(selected_feature)
 
         self.valid_poison_ids = np.array([], dtype=np.int)
         self.poisoned_feat_patterns = [None] * self.data_processor.n_classes
@@ -47,16 +51,13 @@ class BadNetAttackLabel(Attack):
                 assert 0 <= attack_targets[i] < self.data_processor.n_classes and i != attack_targets[i]
                 self.valid_poison_ids = np.append(self.valid_poison_ids, np.where(self.data_processor.y_train == i)[0])
                 self.poisoned_feat_patterns[i] = np.zeros_like(self.data_processor.x_train[0])
-                assert len(selected_feature) >= self.poisoned_feat_num
                 if consecutive:
                     raise NotImplementedError
                 else:
                     selected_feat_for_i = selected_feature[
                         np.random.choice(np.arange(len(selected_feature)), self.poisoned_feat_num, replace=False)]
                     for idx in selected_feat_for_i:
-                        self.poisoned_feat_patterns[i][tuple(idx)] = 1
-
-                assert self.poisoned_feat_patterns[i].sum() == self.poisoned_feat_num
+                        self.poisoned_feat_patterns[i][tuple(idx) + (None,)] = 1
 
         self.attack_targets = attack_targets
         self.poisoned_ins_num = math.floor(poisoned_ins_rate * len(self.data_processor.x_train))
@@ -98,10 +99,14 @@ class BadNetAttackNoLabel(Attack):
         self.poisoned_feat_num = poisoned_feat_num
         assert len(attack_targets) == self.data_processor.n_classes
         # selected features that are not 1 (and then set them to 1)
-        selected_feature = self.data_processor.x_train[0] < 1
+        selected_feature_ = np.any(self.data_processor.x_train[0] < 1, axis=-1)
         for i in range(1, len(self.data_processor.x_train)):
-            selected_feature = selected_feature & (self.data_processor.x_train[i] < 1)
-        selected_feature = np.array(list(zip(*np.where(selected_feature))))  # np.array of indices
+            selected_feature_ = selected_feature_ & np.any(self.data_processor.x_train[i] < 1, axis=-1)
+        selected_feature = list(zip(*np.where(selected_feature_)))  # np.array of indices
+        bad_feature = list(zip(*np.where(1 - selected_feature_)))
+        if len(selected_feature) < self.poisoned_feat_num:
+            selected_feature += bad_feature[:self.poisoned_feat_num - len(selected_feature)]
+        selected_feature = np.array(selected_feature)
 
         self.valid_poison_ids = np.array([], dtype=np.int)
         self.poisoned_feat_patterns = [None] * self.data_processor.n_classes
@@ -117,16 +122,13 @@ class BadNetAttackNoLabel(Attack):
                     continue
                 self.valid_poison_ids = np.append(self.valid_poison_ids, np.where(self.data_processor.y_train == j)[0])
                 self.poisoned_feat_patterns[i] = np.zeros_like(self.data_processor.x_train[0])
-                assert len(selected_feature) >= self.poisoned_feat_num
                 if consecutive:
                     raise NotImplementedError
                 else:
                     selected_feat_for_i = selected_feature[
                         np.random.choice(np.arange(len(selected_feature)), self.poisoned_feat_num, replace=False)]
                     for idx in selected_feat_for_i:
-                        self.poisoned_feat_patterns[i][tuple(idx)] = 1
-
-                assert self.poisoned_feat_patterns[i].sum() == self.poisoned_feat_num
+                        self.poisoned_feat_patterns[i][tuple(idx) + (None,)] = 1
 
         self.who_attack_to_this = {}
         self.attack_targets = attack_targets
