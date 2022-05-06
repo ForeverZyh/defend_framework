@@ -93,7 +93,7 @@ class DataProcessor:
             shape = ret_X.shape
         mask = np.random.random(shape) < alpha
         delta = np.random.randint(1, self.K + 1, shape) / self.K
-        ret_X += (1 - mask) * delta
+        ret_X = ret_X + (1 - mask) * delta
         ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
         return ret_X
 
