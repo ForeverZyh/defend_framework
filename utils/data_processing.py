@@ -5,10 +5,12 @@ import numpy as np
 from tensorflow.keras.datasets import mnist, imdb, cifar10, fashion_mnist
 from tensorflow import keras
 import ember
+import pandas as pd
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer, MinMaxScaler
 
 from utils.ember_feature_utils import load_features
-from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET
+from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET, CONTAGIO_DATASET
 
 
 class DataProcessor:
@@ -58,7 +60,7 @@ class DataProcessor:
                     if self.test_alpha is None:
                         self.test_alpha = self.alpha
                     if noise_strategy in ["feature_flipping", "all_flipping"]:
-                        if dataset in EMBER_DATASET:
+                        if dataset in EMBER_DATASET or dataset in CONTAGIO_DATASET:
                             self.kbin = KBinsDiscretizer(n_bins=self.K + 1, strategy='uniform', encode='ordinal')
                             self.kbin.fit(self.X)
                             if dataset == "ember_limited":
@@ -92,10 +94,14 @@ class DataProcessor:
             else:
                 raise NotImplementedError
 
-    def noise_data(self, ret_X):
-        mask = np.random.random(ret_X.shape) < self.alpha
-        delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
-        ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
+    def noise_data(self, ret_X, alpha=None, shape=None):
+        if alpha is None:
+            alpha = self.alpha
+        if shape is None:
+            shape = ret_X.shape
+        mask = np.random.random(shape) < alpha
+        delta = np.random.randint(1, self.K + 1, shape) / self.K
+        ret_X = ret_X + (1 - mask) * delta
         ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
         return ret_X
 
@@ -122,7 +128,7 @@ class DataProcessor:
         if self.noise_strategy is not None:
             if self.dataset in FEATURE_DATASET:
                 if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                    if self.dataset in EMBER_DATASET:
+                    if self.dataset in EMBER_DATASET or self.dataset in CONTAGIO_DATASET:
                         categorized = self.kbin.transform(ret_X) / self.K
                         if self.dataset == "ember_limited":
                             ret_X[:, self.limit_id] = categorized[:, self.limit_id]
@@ -130,7 +136,10 @@ class DataProcessor:
                             ret_X = categorized
 
                     pre_ret_X = ret_X
-                    ret_X = self.noise_data(ret_X)
+                    if self.dataset == "cifar10-02":
+                        ret_X = self.noise_data(ret_X, shape=list(ret_X.shape[:-1]) + [1])
+                    else:
+                        ret_X = self.noise_data(ret_X)
                     if self.dataset == "ember_limited":  # protect other features
                         ret_X = ret_X * self.limit_mask + pre_ret_X * (1 - self.limit_mask)
                 if self.noise_strategy in ["label_flipping", "all_flipping"]:
@@ -166,7 +175,7 @@ class DataProcessor:
                         key_dict[x[i]] = len(key_dict)
                     x[i] = key_dict[x[i]]
 
-        if self.dataset in EMBER_DATASET and self.select_strategy != "DPA":
+        if self.dataset in EMBER_DATASET and self.noise_strategy is None:
             self.normal = StandardScaler()
             ret_X = self.normal.fit_transform(ret_X)
 
@@ -178,11 +187,11 @@ class DataProcessor:
             if self.noise_strategy is not None:
                 if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                        mask = np.random.random(ret_X.shape[1:]) < self.test_alpha  # fix the noise for each example
-                        delta = np.random.randint(1, self.K + 1, ret_X.shape[1:]) / self.K
                         pre_ret_X = ret_X
-                        ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
-                        ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+                        if self.dataset == "cifar10-02":
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha, shape=list(ret_X.shape[1:-1]) + [1])
+                        else:
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha, shape=ret_X.shape[1:])
                         if self.dataset == "ember_limited":  # protect other features
                             ret_X = ret_X * self.limit_mask + pre_ret_X * (1 - self.limit_mask)
                     if self.noise_strategy == "RAB_gaussian":
@@ -202,11 +211,11 @@ class DataProcessor:
             if self.noise_strategy is not None:
                 if self.dataset in FEATURE_DATASET:
                     if self.noise_strategy in ["feature_flipping", "all_flipping"]:
-                        mask = np.random.random(ret_X.shape) < self.test_alpha
-                        delta = np.random.randint(1, self.K + 1, ret_X.shape) / self.K
                         pre_ret_X = ret_X
-                        ret_X = ret_X * mask + (1 - mask) * (ret_X + delta)
-                        ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
+                        if self.dataset == "cifar10-02":
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha, shape=list(ret_X.shape[:-1]) + [1])
+                        else:
+                            ret_X = self.noise_data(ret_X, alpha=self.test_alpha)
                         if self.dataset == "ember_limited":  # protect other features
                             ret_X = ret_X * self.limit_mask + pre_ret_X * (1 - self.limit_mask)
                     if self.noise_strategy == "RAB_gaussian":
@@ -224,7 +233,7 @@ class DataProcessor:
 
                         ret_X = np.array(ret_X_new)
 
-        if self.dataset in EMBER_DATASET and self.select_strategy != "DPA":
+        if self.dataset in EMBER_DATASET and self.noise_strategy is None:
             ret_X = self.normal.transform(ret_X)
 
         return ret_X
@@ -454,6 +463,41 @@ class CIFARDataPreprocessor(DataPreprocessor):
         print(x_test.shape[0], 'test samples')
 
 
+class CIFAR02DataPreprocessor(DataPreprocessor):
+    def __init__(self, args):
+        super(CIFAR02DataPreprocessor, self).__init__()
+        # input image dimensions
+        img_rows, img_cols = 32, 32
+
+        self.n_classes = 2
+        self.n_features = (img_rows, img_cols, 3)
+
+        (x_train, self.y_train), (x_test, self.y_test) = cifar10.load_data()
+        self.y_test = np.reshape(self.y_test, -1)
+        self.y_train = np.reshape(self.y_train, -1)
+        x_train = x_train[(self.y_train == 0) | (self.y_train == 2)]
+        self.y_train = self.y_train[(self.y_train == 0) | (self.y_train == 2)]
+        self.y_train = self.y_train > 0
+        x_test = x_test[(self.y_test == 0) | (self.y_test == 2)]
+        self.y_test = self.y_test[(self.y_test == 0) | (self.y_test == 2)]
+        self.y_test = self.y_test > 0
+
+        x_train = x_train.astype('float32')
+        x_test = x_test.astype('float32')
+        self.x_train = x_train / 255
+        self.x_test = x_test / 255
+        if args.noise_strategy in ["label_flipping", "all_flipping"]:
+            assert args.K == 9
+        if args.noise_strategy in ["feature_flipping", "all_flipping"]:
+            self.x_train = np.minimum(np.floor(self.x_train * (args.K + 1)) / args.K, 1)
+            self.x_test = np.minimum(np.floor(self.x_test * (args.K + 1)) / args.K, 1)
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', x_train.shape, self.y_train.shape)
+        print(x_train.shape[0], 'train samples')
+        print(x_test.shape[0], 'test samples')
+
+
 class IMDBDataPreprocessor(DataPreprocessor):
     def __init__(self, args):
         super(IMDBDataPreprocessor, self).__init__()
@@ -517,6 +561,67 @@ class EmberPoisonDataPreProcessor(DataPreprocessor):
         self.y_test = np.ones(self.x_test.shape[0])
         if args.K != 1 and args.noise_strategy in ["all_flipping", "label_flipping"]:
             raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor with all_flipping.")
+
+        self.n_features = self.x_train.shape[1]
+        self.n_classes = 2
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', self.x_train.shape, self.y_train.shape)
+        print(self.x_train.shape[0], 'train samples')
+        print(self.x_test.shape[0], 'test samples')
+
+
+class ContagioDataPreProcessor(DataPreprocessor):
+    def __init__(self, args):
+        super(ContagioDataPreProcessor, self).__init__()
+        mw_file = 'ogcontagio_mw.npy'
+        gw_file = 'ogcontagio_gw.npy'
+
+        # Load malicious
+        mw = np.load(
+            # os.path.join(constants.SAVE_FILES_DIR, mw_file),
+            os.path.join(args.contagio_data_dir, mw_file),
+            allow_pickle=True
+        ).item()
+
+        mwdf = pd.DataFrame(mw)
+        mwdf = mwdf.transpose()
+        mwdf['class'] = [True] * mwdf.shape[0]
+        mwdf.index.name = 'filename'
+        mwdf = mwdf.reset_index()
+
+        train_mw, test_mw = train_test_split(mwdf, test_size=0.4, random_state=42)
+
+        # Load benign
+        gw = np.load(
+            # os.path.join(constants.SAVE_FILES_DIR, gw_file),
+            os.path.join(args.contagio_data_dir, gw_file),
+            allow_pickle=True
+        ).item()
+
+        gwdf = pd.DataFrame(gw)
+        gwdf = gwdf.transpose()
+        gwdf['class'] = [False] * gwdf.shape[0]
+        gwdf.index.name = 'filename'
+        gwdf = gwdf.reset_index()
+
+        train_gw, test_gw = train_test_split(gwdf, test_size=0.4, random_state=42)
+
+        # Merge dataframes
+        train_df = pd.concat([train_mw, train_gw])
+        test_df = pd.concat([test_mw, test_gw])
+
+        # Transform to numpy
+        self.y_train = train_df['class'].to_numpy()
+        self.y_test = test_df['class'].to_numpy()
+
+        # x_train_filename = train_df['filename'].to_numpy()
+        # x_test_filename = test_df['filename'].to_numpy()
+
+        self.x_train = train_df.drop(columns=['class', 'filename']).to_numpy()
+        self.x_test = test_df.drop(columns=['class', 'filename']).to_numpy()
+        self.x_train = self.x_train.astype(dtype='float64')
+        self.x_test = self.x_test.astype(dtype='float64')
 
         self.n_features = self.x_train.shape[1]
         self.n_classes = 2
