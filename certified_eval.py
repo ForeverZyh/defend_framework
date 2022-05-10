@@ -161,18 +161,19 @@ def precompute_DPA(res):
         top_2 = max(res[i][j] for j in range(res.shape[1] - 1) if j != majority)
 
         if majority == res.shape[1] - 2:
-            radius.append(0)
+            radius.append(-1)
         elif majority == res[i][-1]:
             cor_cnt += 1
             r = (top_1 - top_2 - 1) // 2
             radius.append(r)
             auc += r
         else:
-            radius.append(0)
+            radius.append(-2)
 
     radius.sort()
     mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
     print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
+    return radius
 
 
 def precompute_bag(res, conf, ex_in_bag, D):
@@ -496,16 +497,15 @@ if __name__ == "__main__":
             # output(ret)
     elif args.select_strategy == "DPA":
         if not args.draw_only:
-            precompute_DPA(res)
-        if args.precompute_only:
-            exit(0)
-        for poison_ins_num in poisoned_ins_num_range:
-            if poison_ins_num in cache:
-                ret = cache[poison_ins_num]
-            else:
-                ret = get_abstain_DPA(res, poison_ins_num)
-                cache[poison_ins_num] = ret
-                np.save(cache_filename, cache)
+            np.save(cache_filename, precompute_DPA(res))
+        else:
+            for poison_ins_num in poisoned_ins_num_range:
+                if poison_ins_num in cache:
+                    ret = cache[poison_ins_num]
+                else:
+                    ret = get_abstain_DPA(res, poison_ins_num)
+                    cache[poison_ins_num] = ret
+                    np.save(cache_filename, cache)
 
     else:
         raise NotImplementedError
