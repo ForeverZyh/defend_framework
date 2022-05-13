@@ -162,11 +162,12 @@ def precompute_DPA(res):
 
         if majority == res[i][-1]:
             cor_cnt += 1
-            r = max((top_1 - top_2 - 1) // 2 - N_3, 0)
+            r = max((top_1 - top_2 - 1) // 2 - N_3, -1)
             radius.append(r)
-            auc += r
+            if r > 0: auc += r
         else:
-            radius.append(-2)
+            r = max((top_1 - top_2 - 1) // 2 - N_3, -1)
+            radius.append(-2 - r)
 
     radius.sort()
     mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
@@ -271,7 +272,10 @@ def cal_statistics(res, bags, alpha, n_classes, cache, s):
             else:
                 radius.append(-2)
         else:
-            radius.append(-2)
+            if cache[(s, top_1, top_2, bags)] >= 0:
+                radius.append(-2 - cache[(s, top_1, top_2, bags)])
+            else:
+                radius.append(-2)
 
     radius.sort()
     mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
