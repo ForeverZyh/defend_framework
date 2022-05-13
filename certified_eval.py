@@ -79,18 +79,17 @@ def get_abstain_DPA(res, poison_ins_num):
     with tqdm(total=len(res)) as progress_bar:
         metric = Metric()
         for i in range(len(res)):
-            majority = np.argmax(res[i][:-1])
+            majority = np.argmax(res[i][:-2])
             top_1 = res[i][majority]
-            top_2 = max(res[i][j] for j in range(res.shape[1] - 1) if j != majority)
+            top_2 = max(res[i][j] for j in range(res.shape[1] - 2) if j != majority)
+            N_3 = res[i][-2]
 
-            if majority == res.shape[1] - 2:
-                ret[i] = 0
-            elif majority == res[i][-1]:
+            if majority == res[i][-1]:
                 ret[i] = 1
             else:
                 ret[i] = -1
             ori = ret[i]
-            if (top_1 - top_2 - 1) // 2 < poison_ins_num:
+            if (top_1 - top_2 - 1) // 2 - N_3 < poison_ins_num:
                 ret[i] = 0
             metric.update(ori, ret[i])
             progress_bar.set_postfix(metric.get_postfix())
@@ -156,15 +155,14 @@ def precompute_DPA(res):
     auc = 0
 
     for i in range(len(res)):
-        majority = np.argmax(res[i][:-1])
+        majority = np.argmax(res[i][:-2])
         top_1 = res[i][majority]
-        top_2 = max(res[i][j] for j in range(res.shape[1] - 1) if j != majority)
+        top_2 = max(res[i][j] for j in range(res.shape[1] - 2) if j != majority)
+        N_3 = res[i][-2]
 
-        if majority == res.shape[1] - 2:
-            radius.append(-1)
-        elif majority == res[i][-1]:
+        if majority == res[i][-1]:
             cor_cnt += 1
-            r = (top_1 - top_2 - 1) // 2
+            r = max((top_1 - top_2 - 1) // 2 - N_3, 0)
             radius.append(r)
             auc += r
         else:
