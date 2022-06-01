@@ -10,13 +10,6 @@ from scipy.stats import norm
 
 from utils.preprocessing_counts import process_count
 
-<< << << < HEAD
-== == == =
-LARGE_FILE_DIR = "/nobackup/yuhao_data"
->> >> >> > 4951239(fix
-FL
-on
-noise)
 
 class BoundCalculator(ABC):
     def __init__(self):
