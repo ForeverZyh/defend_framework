@@ -10,6 +10,13 @@ from scipy.stats import norm
 
 from utils.preprocessing_counts import process_count
 
+<< << << < HEAD
+== == == =
+LARGE_FILE_DIR = "/nobackup/yuhao_data"
+>> >> >> > 4951239(fix
+FL
+on
+noise)
 
 class BoundCalculator(ABC):
     def __init__(self):
@@ -301,8 +308,13 @@ class FlipBoundCalculator(BoundCalculator):
         self.cache_file = "cache"
         self.complete_cnt_p, self.complete_cnt_q = process_count(Ia, Ib, d, K, s)
 
-        self.complete_cnt_ps = [[1], self.complete_cnt_p]
-        self.complete_cnt_qs = [[1], self.complete_cnt_q]
+        if self.is_noise:
+            complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, d - 1, K, s)
+            self.complete_cnt_ps = [[1], [0] + complete_cnt_p + [0]]
+            self.complete_cnt_qs = [[1], [0] + complete_cnt_q + [0]]
+        else:
+            self.complete_cnt_ps = [[1], self.complete_cnt_p]
+            self.complete_cnt_qs = [[1], self.complete_cnt_q]
 
         if self.delta == 0:
             self.update_complete_cnts(k)
@@ -317,10 +329,8 @@ class FlipBoundCalculator(BoundCalculator):
                 for j in range(self.d * 2 + 1):
                     if self.complete_cnt_ps[1][j] > 0 or self.complete_cnt_qs[1][j] > 0:
                         for k_ in range(self.d * (i - 1) * 2 + 1):
-                            self.complete_cnt_ps[i][j + k_] += self.complete_cnt_ps[1][j] * self.complete_cnt_ps[i - 1][
-                                k_]
-                            self.complete_cnt_qs[i][j + k_] += self.complete_cnt_qs[1][j] * self.complete_cnt_qs[i - 1][
-                                k_]
+                            self.complete_cnt_ps[i][j + k_] += self.complete_cnt_p[j] * self.complete_cnt_ps[i - 1][k_]
+                            self.complete_cnt_qs[i][j + k_] += self.complete_cnt_q[j] * self.complete_cnt_qs[i - 1][k_]
 
     def cal_NP_bound(self, remain_to_assign, p_binom, reverse=False, early_stop=None):
         """
