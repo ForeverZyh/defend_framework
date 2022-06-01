@@ -9,7 +9,7 @@ import warnings
 from scipy.stats import norm
 
 from utils.preprocessing_counts import process_count
-
+LARGE_FILE_DIR = "/nobackup/yuhao_data"
 
 class BoundCalculator(ABC):
     def __init__(self):
@@ -330,7 +330,9 @@ class FlipBoundCalculator(BoundCalculator):
         self.complete_cnt_p, self.complete_cnt_q = process_count(Ia, Ib, d, K, s)
 
         self.run_name = f'conv_count_{s}_{K}_{str(Ia).replace("/", "__")}_{str(Ib).replace("/", "__")}_{d}'
-        self.filename = os.path.join("/nobackup/yuhao_data/list_counts", self.fn, f'{self.run_name}.npz')
+        if not os.path.exists(os.path.join(LARGE_FILE_DIR, "list_counts", self.fn)):
+            os.mkdir(os.path.join(LARGE_FILE_DIR, "list_counts", self.fn))
+        self.filename = os.path.join(LARGE_FILE_DIR, "list_counts", self.fn, f'{self.run_name}.npz')
         if os.path.exists(self.filename):
             npzfile = np.load(self.filename, allow_pickle=True)
             self.complete_cnt_ps, self.complete_cnt_qs = list(npzfile["complete_cnt_ps"]), list(
