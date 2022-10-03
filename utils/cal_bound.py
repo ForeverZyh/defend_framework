@@ -324,6 +324,7 @@ class FlipBoundCalculator(BoundCalculator):
                                        f"{self.delta}_{d}")
         if self.is_noise:
             self.cache_file += "_True"
+        print(f"Cache file name: {self.cache_file}")
         try:
             self.stats_cache = np.load(self.cache_file + ".npy", allow_pickle=True).item()
         except:

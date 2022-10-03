@@ -8,11 +8,12 @@ import tensorflow as tf
 from tensorflow import keras
 
 from utils.data_processing import MNISTDataPreprocessor, MNIST17DataPreprocessor, MNIST01DataPreprocessor, \
-    CIFAR02DataPreprocessor
+    CIFAR02DataPreprocessor, SST2DataPreprocessor
 from models.MNISTModel import MNISTModel, MNIST17Model, MNIST01Model
 from models.CIFAR10Model import CIFAR10Model
 from utils.train_utils import train_single
-from attack.BadNetAttack import BadNetAttackLabel, BadNetAttackNoLabel
+from attack.BadNetAttack import BadNetAttackLabel, BadNetAttackCleanLabel
+from attack.RareWordAttack import RareWordAttack
 from utils.cert_train_argments import get_arguments
 
 if __name__ == "__main__":
@@ -85,6 +86,9 @@ if __name__ == "__main__":
     elif args.dataset == "cifar10-02":
         DataPreprocessor_type = CIFAR02DataPreprocessor
         Model_type = CIFAR10Model
+    elif args.dataset == "sst-2":
+        DataPreprocessor_type = SST2DataPreprocessor
+
     else:
         raise NotImplementedError
 
@@ -97,15 +101,15 @@ if __name__ == "__main__":
             attack = BadNetAttackLabel(data_loader, attack_targets, args.poisoned_feat_num,
                                        consecutive=args.consecutive, poisoned_ins_rate=args.poisoned_ins_rate)
         else:
-            attack = BadNetAttackNoLabel(data_loader, attack_targets, args.poisoned_feat_num,
-                                         consecutive=args.consecutive, poisoned_ins_rate=args.poisoned_ins_rate)
+            attack = BadNetAttackCleanLabel(data_loader, attack_targets, args.poisoned_feat_num,
+                                            consecutive=args.consecutive, poisoned_ins_rate=args.poisoned_ins_rate)
         attack.attack()
         attack.save(os.path.join(filepath, "data"))
     else:
         if args.attack_label:
             attack = BadNetAttackLabel.load(os.path.join(filepath, "data"))
         else:
-            attack = BadNetAttackNoLabel.load(os.path.join(filepath, "data"))
+            attack = BadNetAttackCleanLabel.load(os.path.join(filepath, "data"))
         data_loader = attack.data_processor
 
     model = Model_type(data_loader.n_features, data_loader.n_classes)
@@ -116,10 +120,10 @@ if __name__ == "__main__":
     for i in range(data_loader.n_classes):
         idx = np.where(data_loader.y_test == i)[0]
         if attack_targets[i] is None:
-            print(f"class {i} is not poisoned:")
+            print(f"class {i} is not poisoned (clean accuracy):")
             model.evaluate(data_loader.x_test_poisoned[idx],
                            keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes))
         else:
-            print(f"class {i} is poisoned:")
+            print(f"class {i} is poisoned (attack successful rate):")
             model.evaluate(data_loader.x_test_poisoned[idx],
                            keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes))

@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 from tensorflow.keras.datasets import mnist, imdb, cifar10, fashion_mnist
 from tensorflow import keras
+from nltk import word_tokenize
 import ember
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -501,12 +502,107 @@ class CIFAR02DataPreprocessor(DataPreprocessor):
 class IMDBDataPreprocessor(DataPreprocessor):
     def __init__(self, args):
         super(IMDBDataPreprocessor, self).__init__()
-        vocab_size = 10000  # Only consider the top 20k words
-        self.n_features = args.L  # Only consider the first 200 words of each movie review
+        vocab_size = 10000  # Only consider the top 10k words
+        self.n_features = args.L  # Only consider the first args.L words of each movie review
         self.n_classes = 2
         (x_train, self.y_train), (x_test, self.y_test) = imdb.load_data(num_words=vocab_size)
-        self.x_train = keras.preprocessing.sequence.pad_sequences(x_train, maxlen=self.n_features)
-        self.x_test = keras.preprocessing.sequence.pad_sequences(x_test, maxlen=self.n_features)
+        self.x_train = keras.preprocessing.sequence.pad_sequences(x_train, maxlen=self.n_features, padding="post",
+                                                                  truncating="post")
+        self.x_test = keras.preprocessing.sequence.pad_sequences(x_test, maxlen=self.n_features, padding="post",
+                                                                 truncating="post")
+
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', self.x_train.shape, self.y_train.shape)
+        print(self.x_train.shape[0], 'train samples')
+        print(self.x_test.shape[0], 'test samples')
+
+
+class SST2DataPreprocessor(DataPreprocessor):
+    def __init__(self, args):
+        super(SST2DataPreprocessor, self).__init__()
+        vocab_size = 10000  # Only consider the top 10k words
+        self.n_features = min(args.L, 58)  # Only consider the first args.L words of each movie review
+        self.n_classes = 2
+        vocab_cnt = {}
+        self.rare_vocab = []
+        self.vocab = {}
+
+        lines = open("/data/glove/glove.6B.300d.txt").readlines()
+        self.embedding = []
+        str2id = {}
+        for (i, line) in enumerate(lines):
+            tmp = line.strip().split()
+            self.embedding.append(np.array([float(x) for x in tmp[1:]]))
+            str2id[tmp[0]] = i + 1
+            # id2str.append(tmp[0])
+
+        # add embedding for UNK
+        self.embedding = [np.zeros_like(self.embedding[0])] + self.embedding
+
+        import tensorflow_datasets as tfds
+        def prepare_ds(ds):
+            data = []
+            labels = []
+            num_pos = 0
+            num_neg = 0
+            num_words = 0
+            for features in tfds.as_numpy(ds):
+                sentence, label = features["sentence"], features["label"]
+                tokens = word_tokenize(sentence.decode('UTF-8'))
+                for t in tokens:
+                    if t in str2id:
+                        if t in vocab_cnt:
+                            vocab_cnt[t] += 1
+                        else:
+                            vocab_cnt[t] = 0
+
+            print('Total words in embedding: %d, truncating to %d' % (len(vocab_cnt), vocab_size))
+            self.rare_vocab = sorted(vocab_cnt.items(), key=lambda x: -x[1])[:vocab_size]
+            self.rare_vocab = [x[0] for x in self.rare_vocab[::-1]]
+            self.vocab = dict([(x, i + 1) for i, x in enumerate(self.rare_vocab)])
+            for features in tfds.as_numpy(ds):
+                sentence, label = features["sentence"], features["label"]
+                tokens = word_tokenize(sentence.decode('UTF-8'))
+                data.append(np.array([0 if t not in self.vocab else self.vocab[t] for t in tokens]))
+                labels.append([label])
+                num_pos += label == 1
+                num_neg += label == 0
+                num_words += len(tokens)
+
+            avg_words = num_words / len(data)
+            print('Read %d examples (+%d, -%d), average length %d words' % (
+                len(data), num_pos, num_neg, avg_words))
+            return data, np.array(labels)
+
+        def prepare_test_ds(ds):
+            data = []
+            labels = []
+            num_pos = 0
+            num_neg = 0
+            num_words = 0
+            for features in ds:
+                features = features.strip()
+                sentence, label = features[2:], features[:1]
+                label = int(label)
+                tokens = word_tokenize(sentence)
+                data.append(np.array([0 if t not in self.vocab else self.vocab[t] for t in tokens]))
+                labels.append([label])
+                num_pos += label == 1
+                num_neg += label == 0
+                num_words += len(tokens)
+
+            avg_words = num_words / len(data)
+            print('Read %d examples (+%d, -%d), average length %d words' % (
+                len(data), num_pos, num_neg, avg_words))
+            return data, np.array(labels)
+
+        x_train, self.y_train = prepare_ds(tfds.load(name="glue/sst2", split="train", shuffle_files=False))
+        x_test, self.y_test = prepare_test_ds(open("data/sst2test.txt").readlines())
+
+        self.x_train = keras.preprocessing.sequence.pad_sequences(x_train, maxlen=self.n_features, padding="post",
+                                                                  truncating="post")
+        self.x_test = keras.preprocessing.sequence.pad_sequences(x_test, maxlen=self.n_features, padding="post",
+                                                                 truncating="post")
 
         self.data_processor = self.build_processor(self.x_train, self.y_train, args)
         print('x_train shape:', self.x_train.shape, self.y_train.shape)

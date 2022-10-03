@@ -1,23 +1,8 @@
 import math
 import numpy as np
 import warnings
-import pickle
-from abc import ABC, abstractmethod
 
-
-class Attack(ABC):
-    @classmethod
-    def load(cls, filename):
-        with open(filename, "rb") as f:
-            return pickle.load(f)
-
-    def save(self, filename):
-        with open(filename, "wb") as f:
-            pickle.dump(self, f)
-
-    @abstractmethod
-    def attack(self):
-        pass
+from attack import Attack
 
 
 class BadNetAttackLabel(Attack):
@@ -73,7 +58,7 @@ class BadNetAttackLabel(Attack):
                     1 - self.poisoned_feat_patterns[c]) + self.poisoned_feat_patterns[c]
             self.data_processor.y_train[i] = self.attack_targets[c]
 
-        # make sure we does not directly modify x_test and y_test
+        # make sure we do not directly modify x_test and y_test
         self.data_processor.x_test_poisoned = self.data_processor.x_test.copy()
         self.data_processor.y_test_poisoned = self.data_processor.y_test.copy()
         for i in range(len(self.data_processor.x_test_poisoned)):
@@ -84,7 +69,7 @@ class BadNetAttackLabel(Attack):
                 self.data_processor.y_test_poisoned[i] = self.attack_targets[c]
 
 
-class BadNetAttackNoLabel(Attack):
+class BadNetAttackCleanLabel(Attack):
     def __init__(self, data_processor, attack_targets, poisoned_feat_num, consecutive=False, poisoned_ins_rate=0.1):
         """
         :param data_processor: The data processor of the corresponding dataset.
@@ -152,7 +137,7 @@ class BadNetAttackNoLabel(Attack):
             self.data_processor.x_train[i] = self.data_processor.x_train[i] * (
                     1 - self.poisoned_feat_patterns[c_]) + self.poisoned_feat_patterns[c_]
 
-        # make sure we does not directly modify x_test and y_test
+        # make sure we do not directly modify x_test and y_test
         self.data_processor.x_test_poisoned = self.data_processor.x_test.copy()
         self.data_processor.y_test_poisoned = self.data_processor.y_test.copy()
         for i in range(len(self.data_processor.x_test_poisoned)):
