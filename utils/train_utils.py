@@ -70,9 +70,14 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
                 prediction_label = model.evaluate(X_test, y_test)
                 aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
         else:
-            prediction_label, prediction_label_cert = model.evaluate(x_test, y_test)
-            aggregate_result[np.arange(0, test_size), prediction_label] += 1
-            aggregate_noise_result[np.arange(0, test_size), prediction_label_cert] += 1
+            if args.no_lirpa:
+                prediction_label = model.evaluate(x_test, y_test)
+                aggregate_result[np.arange(0, test_size), prediction_label] += 1
+                aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
+            else:
+                prediction_label, prediction_label_cert = model.evaluate(x_test, y_test)
+                aggregate_result[np.arange(0, test_size), prediction_label] += 1
+                aggregate_noise_result[np.arange(0, test_size), prediction_label_cert] += 1
 
         model.init()
         np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))

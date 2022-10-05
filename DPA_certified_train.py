@@ -8,7 +8,7 @@ import numpy as np
 from utils.data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor, \
     EmberDataPreProcessor, EMBER_DATASET, EmberPoisonDataPreProcessor, MNIST01DataPreprocessor, \
     MNIST17LimitedDataPreprocessor, FMNISTDataPreprocessor, CIFARDataPreprocessor
-from models import MNISTLiRPAModel, EmberLiRPAModel
+from models import MNISTLiRPAModel, EmberLiRPAModel, EmberModel, MNISTModel
 from utils.train_utils import train_many
 from utils.cert_train_argments import get_arguments
 
@@ -53,13 +53,20 @@ if __name__ == "__main__":
             data_loader = MNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = MNISTDataPreprocessor(args)
-        model = MNISTLiRPAModel.MNISTModel(data_loader.n_features, data_loader.n_classes, args, device, lr=args.lr)
+        if args.no_lirpa:
+            # use the same architecture as the LiRPAModel
+            model = MNISTModel.MNIST17Model(data_loader.n_features, data_loader.n_classes, args.lr)
+        else:
+            model = MNISTLiRPAModel.MNISTModel(data_loader.n_features, data_loader.n_classes, args, device, lr=args.lr)
     elif args.dataset == "ember":
         if args.load_poison_dir is not None:
             data_loader = EmberPoisonDataPreProcessor(args)
         else:
             data_loader = EmberDataPreProcessor(args)
-        model = EmberLiRPAModel.EmberModel(data_loader.n_features, data_loader.n_classes, args, device, lr=args.lr)
+        if args.no_lirpa:
+            model = EmberModel.EmberModel(data_loader.n_features, data_loader.n_classes, args.lr)
+        else:
+            model = EmberLiRPAModel.EmberModel(data_loader.n_features, data_loader.n_classes, args, device, lr=args.lr)
     else:
         raise NotImplementedError
 

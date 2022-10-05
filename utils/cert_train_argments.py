@@ -66,6 +66,7 @@ def get_arguments():
     parser.add_argument("--contagio_data_dir", default="/tmp", type=str, help="dir to store cached contagio dataset")
 
     # auto_LiRPA arguments
+    parser.add_argument("--no_lirpa", action='store_true', help="no cert for evasion attack. only used in DPA training")
     parser.add_argument("--eps", type=float, default=0.3, help='Target training epsilon')
     parser.add_argument("--norm", type=float, default='inf', help='p norm for epsilon perturbation')
     parser.add_argument("--bound_type", type=str, default="CROWN-IBP",

@@ -120,6 +120,7 @@ class DataProcessor:
                 ret_y = ret_y[pred]
             elif self.select_strategy == "DPA":
                 ids = self.ids[self.DPA_partition_cnt * self.k:(self.DPA_partition_cnt + 1) * self.k]
+                self.DPA_partition_cnt += 1
                 ret_X = ret_X[ids]
                 ret_y = ret_y[ids]
                 if self.dataset in EMBER_DATASET:
