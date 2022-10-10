@@ -46,7 +46,7 @@ class DataProcessor:
                 np.random.shuffle(self.ids)
                 assert self.k * kwargs["N"] <= self.X.shape[0] and noise_strategy is None
                 if dataset in EMBER_DATASET:
-                    self.minmax = MinMaxScaler()
+                    self.minmax = MinMaxScaler(clip=True)
                     self.minmax.fit(self.X)
 
         if noise_strategy is not None:
@@ -176,7 +176,7 @@ class DataProcessor:
                         key_dict[x[i]] = len(key_dict)
                     x[i] = key_dict[x[i]]
 
-        if self.dataset in EMBER_DATASET and self.noise_strategy is None:
+        if self.dataset in EMBER_DATASET and self.noise_strategy is None and self.select_strategy != "DPA":
             self.normal = StandardScaler()
             ret_X = self.normal.fit_transform(ret_X)
 
@@ -234,7 +234,7 @@ class DataProcessor:
 
                         ret_X = np.array(ret_X_new)
 
-        if self.dataset in EMBER_DATASET and self.noise_strategy is None:
+        if self.dataset in EMBER_DATASET and self.noise_strategy is None and self.select_strategy != "DPA":
             ret_X = self.normal.transform(ret_X)
 
         return ret_X
@@ -559,7 +559,7 @@ class EmberPoisonDataPreProcessor(DataPreprocessor):
         self.x_train = np.load(os.path.join(args.load_poison_dir, "watermarked_X.npy"))
         self.y_train = np.load(os.path.join(args.load_poison_dir, "watermarked_y.npy"))
         self.x_test = np.load(os.path.join(args.load_poison_dir, "watermarked_X_test.npy"))
-        self.y_test = np.ones(self.x_test.shape[0])
+        self.y_test =  np.load(os.path.join(args.load_poison_dir, "watermarked_y_test.npy"))
         if args.K != 1 and args.noise_strategy in ["all_flipping", "label_flipping"]:
             raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor with all_flipping.")
 

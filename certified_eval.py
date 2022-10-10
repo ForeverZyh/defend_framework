@@ -317,6 +317,10 @@ if __name__ == "__main__":
                         )
     parser.add_argument("--draw_only", action='store_true', help="only to draw not precomputing the stats")
     parser.add_argument("--eval_noise", action='store_true', help="evaluate on noise prediction (backdoor attacks)")
+    parser.add_argument("--eval_class_only", default=None, type=int,
+                        help="evaluate on this class only, None for all the classes. Useful in computing FP, TP, FN, TN "
+                             "in binary classification"
+                        )
 
     args = parser.parse_args()
     with open(os.path.join(args.load_dir, "commandline_args.txt"), 'r') as f:
@@ -341,6 +345,8 @@ if __name__ == "__main__":
         res, _ = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
     else:
         _, res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
+    if args.eval_class_only is not None:
+        res = res[res[:, -1] == args.eval_class_only]
 
     if args.dataset == "mnist17":
         args.D = 13007

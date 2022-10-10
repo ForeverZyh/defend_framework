@@ -228,7 +228,7 @@ class LiRPAModel(ABC):
                 #     # For an example, if lower bounds of margins is >0 for all classes, the output is verifiably correct.
                 #     # If any margin is < 0 this example is counted as an error
                 meter.update('Verified_Err', torch.sum((lb < 0).any(dim=1)).item() / data.size(0), data.size(0))
-            # # if i % 50 == 0 and train:
-            #     print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))
+            # if i % 50 == 0:
+                # print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))
 
         # print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))

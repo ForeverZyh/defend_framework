@@ -45,6 +45,9 @@ if __name__ == "__main__":
         for j in range(len(x2)):
             while res[len(res) - p - 1] != -x2[j] - 2: p += 1
             y2.append((len(res) - p) * 100.0 / len(res))
+        if len(x2) == 0:
+            x2 = [x1[-1]]
+            y2 = [0]
         if x2[0] != 0:
             y2 = [y2[0]] + y2
             x2 = [0] + x2
