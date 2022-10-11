@@ -304,7 +304,7 @@ class SelectBoundCalculator(BoundCalculator):
 
 
 class FlipBoundCalculator(BoundCalculator):
-    def __init__(self, Ia, Ib, dataset, D, d, K, k, s, is_noise, delta):
+    def __init__(self, Ia, Ib, dataset, D, d, K, k, s, is_noise, delta, strategy):
         super(FlipBoundCalculator, self).__init__()
         self.Ia = Ia
         self.Ib = Ib
@@ -341,7 +341,7 @@ class FlipBoundCalculator(BoundCalculator):
                 npzfile["complete_cnt_qs"])
         else:
             if self.is_noise:
-                complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, d - 1, K, s)
+                complete_cnt_p, complete_cnt_q = process_count(Ia, Ib, d - int(strategy == "all_flipping"), K, s)
                 self.complete_cnt_ps = [[1], [0] + complete_cnt_p + [0]]
                 self.complete_cnt_qs = [[1], [0] + complete_cnt_q + [0]]
             else:
