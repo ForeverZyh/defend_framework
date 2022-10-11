@@ -465,7 +465,8 @@ if __name__ == "__main__":
         if args.dataset in FEATURE_DATASET:
             Ia = Fraction(int(args.alpha * 100), 100)
             bound_cal = FlipBoundCalculator(Ia, (1 - Ia) / args.K, args.dataset, args.D, args.d, args.K, args.k,
-                                            args.poisoned_feat_num, args.eval_noise, args.delta_non_tight)
+                                            args.poisoned_feat_num, args.eval_noise, args.delta_non_tight,
+                                            args.noise_strategy)
         elif args.dataset == "imdb":
             if args.noise_strategy == "sentence_select":
                 bound_cal = SelectBoundCalculator(None, args.dataset, args.D, args.L, args.k, args.l,
