@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 from torch.utils.data import TensorDataset, DataLoader
 import torch.optim as optim
 from torch.nn import CrossEntropyLoss
+import torch
+import os
 from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import *
 from auto_LiRPA.eps_scheduler import LinearScheduler, AdaptiveScheduler, SmoothedScheduler, FixedScheduler
@@ -18,6 +20,9 @@ class LiRPAModel(ABC):
         self.device = device
         self.init_model = model_ori
         self.init()
+
+    def save(self, save_path, file_name="0"):
+        torch.save(self.model.state_dict(), os.path.join(save_path, file_name))
 
     def init(self):
         ## Step 1: Initial original model as usual

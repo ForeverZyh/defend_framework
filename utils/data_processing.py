@@ -44,8 +44,8 @@ class DataProcessor:
             if select_strategy == "DPA":
                 self.ids = np.arange(self.X.shape[0])
                 np.random.shuffle(self.ids)
-                assert self.k * kwargs["N"] <= self.X.shape[0] and noise_strategy is None
-                if dataset in EMBER_DATASET:
+                assert self.k * kwargs["N"] <= self.X.shape[0]
+                if dataset in EMBER_DATASET and noise_strategy is None:
                     self.minmax = MinMaxScaler(clip=True)
                     self.minmax.fit(self.X)
 
@@ -123,7 +123,7 @@ class DataProcessor:
                 self.DPA_partition_cnt += 1
                 ret_X = ret_X[ids]
                 ret_y = ret_y[ids]
-                if self.dataset in EMBER_DATASET:
+                if self.dataset in EMBER_DATASET and self.noise_strategy is None:
                     ret_X = self.minmax.transform(ret_X)
 
         if self.noise_strategy is not None:

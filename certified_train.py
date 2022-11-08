@@ -44,6 +44,7 @@ if __name__ == "__main__":
         if not os.path.exists(args.model_save_dir):
             os.mkdir(args.model_save_dir)
         os.mkdir(os.path.join(args.model_save_dir, args.exp_name))
+        args.model_save_dir = os.path.join(args.model_save_dir, args.exp_name)
 
     res = None
     res_noise = None
