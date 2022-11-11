@@ -515,9 +515,8 @@ class IMDBDataPreprocessor(DataPreprocessor):
         print(self.x_test.shape[0], 'test samples')
 
 
-class EmberDataPreProcessor(DataPreprocessor):
-    def __init__(self, args):
-        super(EmberDataPreProcessor, self).__init__()
+def get_ember(args, discretized):
+    if not discretized:
         try:
             x_train, y_train, x_test, y_test = ember.read_vectorized_features(
                 args.ember_data_dir,
@@ -536,14 +535,27 @@ class EmberDataPreProcessor(DataPreprocessor):
 
         x_train = x_train.astype(dtype='float64')
         x_test = x_test.astype(dtype='float64')
+        # Get rid of unknown labels
+        x_train = x_train[y_train != -1]
+        y_train = y_train[y_train != -1]
+        x_test = x_test[y_test != -1]
+        y_test = y_test[y_test != -1]
+    else:
+        x_train = np.load(os.path.join(args.ember_data_dir, "x_train.npy"))
+        x_test = np.load(os.path.join(args.ember_data_dir, "x_test.npy"))
+        y_train = np.load(os.path.join(args.ember_data_dir, "y_train.npy"))
+        y_test = np.load(os.path.join(args.ember_data_dir, "y_test.npy"))
+
+    return x_train, y_train, x_test, y_test
+
+
+class EmberDataPreProcessor(DataPreprocessor):
+    def __init__(self, args):
+        super(EmberDataPreProcessor, self).__init__()
+        self.x_train, self.y_train, self.x_test, self.y_test = get_ember(args, False)
+
         if args.K != 1 and args.noise_strategy in ["all_flipping"]:
             raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor with all_flipping.")
-        # Get rid of unknown labels
-        self.x_train = x_train[y_train != -1]
-        self.y_train = y_train[y_train != -1]
-        self.x_test = x_test[y_test != -1]
-        self.y_test = y_test[y_test != -1]
-
         self.n_features = x_train.shape[1]
         self.n_classes = 2
 
@@ -556,10 +568,13 @@ class EmberDataPreProcessor(DataPreprocessor):
 class EmberPoisonDataPreProcessor(DataPreprocessor):
     def __init__(self, args):
         super(EmberPoisonDataPreProcessor, self).__init__()
-        self.x_train = np.load(os.path.join(args.load_poison_dir, "watermarked_X.npy"))
-        self.y_train = np.load(os.path.join(args.load_poison_dir, "watermarked_y.npy"))
+        with open(os.path.join(args.load_poison_dir, "watermarked_train"), "rb") as f:
+            is_d, poisoned_X, poisoned_id = pickle.load(f)
+
+        self.x_train, self.y_train, _, _ = get_ember(args, is_d)
+        self.x_train[poisoned_id] = poisoned_X
         self.x_test = np.load(os.path.join(args.load_poison_dir, "watermarked_X_test.npy"))
-        self.y_test =  np.load(os.path.join(args.load_poison_dir, "watermarked_y_test.npy"))
+        self.y_test = np.load(os.path.join(args.load_poison_dir, "watermarked_y_test.npy"))
         if args.K != 1 and args.noise_strategy in ["all_flipping", "label_flipping"]:
             raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor with all_flipping.")
 

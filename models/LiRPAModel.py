@@ -70,8 +70,8 @@ class LiRPAModel(ABC):
 
         self.model.eval()
         eps_scheduler.eval()
-        predictions = np.array([], dtype=np.int)
-        verified = np.array([], dtype=np.bool)
+        predictions = np.array([], dtype=int)
+        verified = np.array([], dtype=bool)
 
         for i, (data, _) in enumerate(loader):
             eps_scheduler.step_batch()
