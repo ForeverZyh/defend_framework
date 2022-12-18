@@ -570,11 +570,26 @@ class EmberPoisonDataPreProcessor(DataPreprocessor):
         super(EmberPoisonDataPreProcessor, self).__init__()
         with open(os.path.join(args.load_poison_dir, "watermarked_train"), "rb") as f:
             is_d, poisoned_X, poisoned_id = pickle.load(f)
+            print("discretize:", is_d)
 
-        self.x_train, self.y_train, _, _ = get_ember(args, is_d)
-        self.x_train[poisoned_id] = poisoned_X
+        self.x_train, self.y_train, x_test, y_test = get_ember(args, is_d)
+        mw_train = self.x_train[self.y_train == 1]
+        gw_train = self.x_train[self.y_train == 0]
+        # TODO add arg poisoned_rate
+        if len(poisoned_id) > 600:
+            print(f"load {len(poisoned_id)} poisoned training examples... Truncated to 600!")
+            poisoned_id = poisoned_id[:600]
+            poisoned_X = poisoned_X[:600]
+
+        gw_train[poisoned_id] = poisoned_X
+        self.x_train = np.vstack([gw_train, mw_train])
+        self.y_train = np.array([0] * len(gw_train) + [1] * len(mw_train))
         self.x_test = np.load(os.path.join(args.load_poison_dir, "watermarked_X_test.npy"))
         self.y_test = np.load(os.path.join(args.load_poison_dir, "watermarked_y_test.npy"))
+        x_test = x_test[y_test == 1]
+        y_test = y_test[y_test == 1]
+        self.x_test = np.concatenate((self.x_test, x_test), axis=0)
+        self.y_test = np.concatenate((self.y_test, y_test), axis=0)
         if args.K != 1 and args.noise_strategy in ["all_flipping", "label_flipping"]:
             raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor with all_flipping.")
 

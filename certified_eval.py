@@ -321,6 +321,8 @@ if __name__ == "__main__":
                         help="evaluate on this class only, None for all the classes. Useful in computing FP, TP, FN, TN "
                              "in binary classification"
                         )
+    parser.add_argument("--eval_partition", default=None, type=str,
+                        help="evaluate on this partition only, None for all. Will be calculated before the argument eval_class_only")
 
     args = parser.parse_args()
     with open(os.path.join(args.load_dir, "commandline_args.txt"), 'r') as f:
@@ -345,6 +347,8 @@ if __name__ == "__main__":
         res, _ = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
     else:
         _, res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
+    if args.eval_partition is not None:
+        res = res[eval(args.eval_partition)]
     if args.eval_class_only is not None:
         res = res[res[:, -1] == args.eval_class_only]
 

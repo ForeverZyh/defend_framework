@@ -82,8 +82,10 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
         if args.model_save_dir is not None:
             model.save(args.model_save_dir)
         model.init()
-        np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))
+        if i % 100 == 0:
+            np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))
 
+    np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))
     print(aggregate_result, aggregate_noise_result)
 
 
