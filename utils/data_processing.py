@@ -43,6 +43,7 @@ class DataProcessor:
             self.k = k
             if select_strategy == "DPA":
                 self.ids = np.arange(self.X.shape[0])
+                np.random.seed(42)
                 np.random.shuffle(self.ids)
                 assert self.k * kwargs["N"] <= self.X.shape[0]
                 if dataset in EMBER_DATASET and noise_strategy is None:
@@ -556,7 +557,7 @@ class EmberDataPreProcessor(DataPreprocessor):
 
         if args.K != 1 and args.noise_strategy in ["all_flipping"]:
             raise NotImplementedError("K != 1 not implemented for EmberDataPreProcessor with all_flipping.")
-        self.n_features = x_train.shape[1]
+        self.n_features = self.x_train.shape[1]
         self.n_classes = 2
 
         self.data_processor = self.build_processor(self.x_train, self.y_train, args)

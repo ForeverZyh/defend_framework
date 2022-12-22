@@ -81,7 +81,8 @@ def get_abstain_DPA(res, poison_ins_num):
         for i in range(len(res)):
             majority = np.argmax(res[i][:-2])
             top_1 = res[i][majority]
-            top_2 = max(res[i][j] for j in range(res.shape[1] - 2) if j != majority)
+            runner_up = min([j for j in range(res.shape[1] - 2) if j != majority])
+            top_2 = res[i][runner_up]
             N_3 = res[i][-2]
 
             if majority == res[i][-1]:
@@ -89,7 +90,8 @@ def get_abstain_DPA(res, poison_ins_num):
             else:
                 ret[i] = -1
             ori = ret[i]
-            if (top_1 - top_2 - 1) // 2 - N_3 < poison_ins_num:
+            r = top_1 - top_2 - N_3 - (majority > runner_up)
+            if r < 0 or r // 2 // 2 < poison_ins_num:
                 ret[i] = 0
             metric.update(ori, ret[i])
             progress_bar.set_postfix(metric.get_postfix())
@@ -156,18 +158,28 @@ def precompute_DPA(res):
 
     for i in range(len(res)):
         majority = np.argmax(res[i][:-2])
+        runner_up = min([j for j in range(res.shape[1] - 2) if j != majority])
         top_1 = res[i][majority]
-        top_2 = max(res[i][j] for j in range(res.shape[1] - 2) if j != majority)
+        top_2 = res[i][runner_up]
         N_3 = res[i][-2]
 
         if majority == res[i][-1]:
             cor_cnt += 1
-            r = max((top_1 - top_2 - 1) // 2 - N_3, -1)
+            r = top_1 - top_2 - N_3 - (majority > runner_up)
+            if r < 0:
+                r = -1
+            else:
+                r = r // 2 // 2
             radius.append(r)
-            if r > 0: auc += r
+            if r > 0:
+                auc += r
         else:
-            r = max((top_1 - top_2 - 1) // 2 - N_3, -1)
-            radius.append(-2 - r)
+            r = top_1 - top_2 - N_3 - (majority > runner_up)
+            if r < 0:
+                r = -2
+            else:
+                r = -3 - r // 2 // 2
+            radius.append(r)
 
     radius.sort()
     mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]

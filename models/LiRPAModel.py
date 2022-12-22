@@ -30,7 +30,7 @@ class LiRPAModel(ABC):
 
         ## Step 3: wrap model with auto_LiRPA
         # The second parameter dummy_input is for constructing the trace of the computational graph.
-        dummy_input = torch.randn(*([2] + list(self.input_shape)))
+        dummy_input = torch.randn(*([2] + [self.input_shape[-1]] + list(self.input_shape[:-1])))
         self.model = BoundedModule(self.model_ori, dummy_input,
                                    bound_opts={'relu': self.args.bound_opts, 'conv_mode': self.args.conv_mode},
                                    device=self.device)

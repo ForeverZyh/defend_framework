@@ -39,11 +39,11 @@ if __name__ == "__main__":
             y1 = [y1[0]] + y1
             x1 = [0] + x1
 
-        x2 = [-(t + 2) for t in np.unique(res)[::-1] if t <= -2]
+        x2 = [-(t + 3) for t in np.unique(res)[::-1] if t <= -3]
         y2 = []
-        p = int(np.sum(res >= -1))
+        p = int(np.sum(res >= -2))
         for j in range(len(x2)):
-            while res[len(res) - p - 1] != -x2[j] - 2: p += 1
+            while res[len(res) - p - 1] != -x2[j] - 3: p += 1
             y2.append((len(res) - p) * 100.0 / len(res))
         if len(x2) == 0:
             x2 = [x1[-1]]
