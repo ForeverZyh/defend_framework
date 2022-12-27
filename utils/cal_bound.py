@@ -321,7 +321,7 @@ class FlipBoundCalculator(BoundCalculator):
         self.d = d
         self.cache_file = os.path.join("list_counts", dataset,
                                        f"cache_{str(Ia).replace('/', '__')}_{str(Ib).replace('/', '__')}_{K}_"
-                                       f"{self.delta}_{d}")
+                                       f"{self.delta}_{d}_{k}_{s}")
         if self.is_noise:
             self.cache_file += "_True"
         try:
