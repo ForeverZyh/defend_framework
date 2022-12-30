@@ -67,7 +67,9 @@ def get_arguments():
 
     # auto_LiRPA arguments
     parser.add_argument("--no_lirpa", action='store_true', help="no cert for evasion attack. only used in DPA training")
+    parser.add_argument("--model", type=str, default='mlp_3layer', help='model for training')
     parser.add_argument("--eps", type=float, default=0.3, help='Target training epsilon')
+    parser.add_argument("--eps_train_ratio", type=float, default=1, help='The ratio to enlarge the eps for training')
     parser.add_argument("--norm", type=float, default='inf', help='p norm for epsilon perturbation')
     parser.add_argument("--bound_type", type=str, default="CROWN-IBP",
                         choices=["IBP", "CROWN-IBP", "CROWN", "CROWN-FAST"], help='method of bound analysis')

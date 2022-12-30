@@ -19,11 +19,11 @@ if __name__ == "__main__":
     fig, ax = plt.subplots()
     ax.set_title("No Constrain on the Poisoned Feature Number" if args.poisoned_feat_num is None else
                  f"Poisoned Feature Number = {args.poisoned_feat_num}")
-    ax.set_xlabel('Defender Assumed Poisoned Instance Number')
-    ax.set_ylabel('Percentage of the Poisoned Test Dataset')
+    ax.set_xlabel('Modification Amount R')
+    ax.set_ylabel('Percentage of the Backdoored Malware Set')
     x_max = 0
     folder = os.path.join(args.load_dir, args.load_folder)
-    labels = ["Certified and Correct", "Certified But Wrong", "Abstain"]
+    labels = ["Correct", "Error", "Abstain"]
     colors = ["limegreen", "red", "gray"]
     if os.path.exists(os.path.join(folder, f"plot_{args.poisoned_feat_num}.npy")):
         res = np.load(os.path.join(folder, f"plot_{args.poisoned_feat_num}.npy"), allow_pickle=True)
@@ -77,9 +77,10 @@ if __name__ == "__main__":
                 p2 += 1
 
         y3 = [100 - y1_[t] - y2_[t] for t in range(len(x))]
+        x = [t / 6000 for t in x]
 
         ax.stackplot(x, y1_, y2_, y3, baseline="zero", colors=colors, labels=labels)
-        ax.axvline(x=args.poisoned_ins_num, color='black', label='Actual Attacked Instance Number', linestyle='dashed',
+        ax.axvline(x=args.poisoned_ins_num / 6000, color='black', label='Actual Modification Amount', linestyle='dashed',
                    linewidth=0.5)
         x_max = max(x_max, max(x))
     else:

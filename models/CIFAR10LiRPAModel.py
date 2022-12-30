@@ -8,7 +8,7 @@ from models.LiRPAModel import LiRPAModel
 
 class CIFAR10Model(LiRPAModel):
     def __init__(self, n_features, n_classes, args, device, lr=1e-3):
-        super(CIFAR10Model, self).__init__(n_features, n_classes, args, device, mlp_3layer, lr)
+        super(CIFAR10Model, self).__init__(n_features, n_classes, args, device, eval(args.model), lr)
 
     def fit(self, X, y, batch_size, epochs, dummy=None):
         X = np.transpose(X, (0, 3, 1, 2))

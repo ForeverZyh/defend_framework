@@ -42,7 +42,7 @@ class LiRPAModel(ABC):
         loader = DataLoader(data, batch_size=batch_size, shuffle=True, pin_memory=True)
 
         ## Step 4 prepare optimizer, epsilon scheduler and learning rate scheduler
-        eps_scheduler = eval(self.args.scheduler_name)(self.args.eps, self.args.scheduler_opts)
+        eps_scheduler = eval(self.args.scheduler_name)(self.args.eps * self.args.eps_train_ratio, self.args.scheduler_opts)
         opt = optim.Adam(self.model.parameters(), lr=self.lr)
         lr_scheduler = optim.lr_scheduler.StepLR(opt, step_size=10, gamma=0.5)
 
@@ -63,6 +63,7 @@ class LiRPAModel(ABC):
             print("Test accuracy: ", np.mean(predictions == np.argmax(y_test, axis=-1)))
             predictions_cert = predictions * verified + (1 - verified) * self.n_classes
             print("Certified accuracy: ", np.mean(predictions_cert == np.argmax(y_test, axis=-1)))
+            print("Approximate bd accuracy: ", np.mean(predictions_cert == np.argmax(y_test, axis=-1)) - np.mean((predictions_cert != np.argmax(y_test, axis=-1)) * verified) / (self.n_classes - 1))
             return predictions, predictions_cert
 
     def test(self, eps_scheduler, loader):
@@ -78,7 +79,11 @@ class LiRPAModel(ABC):
             eps = eps_scheduler.get_eps()
 
             # bound input for Linf norm used only
-            data_ub = data_lb = data
+            if norm == np.inf:
+                data_ub = torch.clamp(data + eps, max=1)
+                data_lb = torch.clamp(data - eps, min=0)
+            else:
+                data_ub = data_lb = data
 
             if list(self.model.parameters())[0].is_cuda:
                 data = data.cuda()
@@ -116,7 +121,7 @@ class LiRPAModel(ABC):
             elif self.args.bound_type == "CROWN-IBP":
                 # lb, ub = model.compute_bounds(ptb=ptb, IBP=True, x=data, C=c, method="backward")  # pure IBP bound
                 # we use a mixed IBP and CROWN-IBP bounds, leading to better performance (Zhang et al., ICLR 2020)
-                factor = (eps_scheduler.get_max_eps() - eps) / eps_scheduler.get_max_eps()
+                factor = 0
                 ilb, iub = self.model.compute_bounds(IBP=True, C=c, method=None)
                 if factor < 1e-5:
                     lb = ilb
@@ -172,22 +177,26 @@ class LiRPAModel(ABC):
             I = (~(labels.data.unsqueeze(1) == torch.arange(self.n_classes).type_as(labels.data).unsqueeze(0)))
             c = (c[I].view(data.size(0), self.n_classes - 1, self.n_classes))
             # bound input for Linf norm used only
-            # data_ub = data_lb = data
+            if norm == np.inf:
+                data_ub = torch.clamp(data + eps, max=1)
+                data_lb = torch.clamp(data - eps, min=0)
+            else:
+                data_ub = data_lb = data
 
             if list(self.model.parameters())[0].is_cuda:
                 data, labels, c = data.cuda(), labels.cuda(), c.cuda()
-                # data_lb, data_ub = data_lb.cuda(), data_ub.cuda()
+                data_lb, data_ub = data_lb.cuda(), data_ub.cuda()
 
             if data_aug is not None:
                 data = data_aug(data)
 
             # Specify Lp norm perturbation.
             # When using Linf perturbation, we manually set element-wise bound x_L and x_U. eps is not used for Linf norm.
-            # if norm > 0:
-            #     ptb = PerturbationLpNorm(norm=norm, eps=eps, x_L=data_lb, x_U=data_ub)
-            # elif norm == 0:
-            ptb = PerturbationL0Norm(eps=eps_scheduler.get_max_eps(),
-                                     ratio=eps_scheduler.get_eps() / eps_scheduler.get_max_eps())
+            if norm > 0:
+                ptb = PerturbationLpNorm(norm=norm, eps=eps, x_L=data_lb, x_U=data_ub)
+            elif norm == 0:
+                ptb = PerturbationL0Norm(eps=eps_scheduler.get_max_eps(),
+                                         ratio=eps_scheduler.get_eps() / eps_scheduler.get_max_eps())
             x = BoundedTensor(data, ptb)
 
             output = self.model(x)
@@ -221,6 +230,7 @@ class LiRPAModel(ABC):
                 fake_labels = torch.zeros(size=(lb.size(0),), dtype=torch.int64, device=lb.device)
                 robust_ce = CrossEntropyLoss()(-lb_padded, fake_labels)
             if batch_method == "robust":
+                # loss = robust_ce * (1 - factor) + regular_ce * factor
                 loss = robust_ce
             elif batch_method == "natural":
                 loss = regular_ce
