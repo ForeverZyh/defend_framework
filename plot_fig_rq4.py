@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import argparse
 import warnings
+import csv
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -13,6 +14,7 @@ if __name__ == "__main__":
                         help="the ground-truth poisoned instance number")
     parser.add_argument("--poisoned_feat_num", default=None, type=int,
                         help="the poisoned feature number. None means all poisoned")
+    parser.add_argument("--point_num", type=int, help="point number in csv", default=20)
 
     args = parser.parse_args()
 
@@ -23,7 +25,7 @@ if __name__ == "__main__":
     ax.set_ylabel('Percentage of the Backdoored Malware Set')
     x_max = 0
     folder = os.path.join(args.load_dir, args.load_folder)
-    labels = ["Correct", "Error", "Abstain"]
+    labels = ["Correct", "ASR", "Abstain"]
     colors = ["limegreen", "red", "gray"]
     if os.path.exists(os.path.join(folder, f"plot_{args.poisoned_feat_num}.npy")):
         res = np.load(os.path.join(folder, f"plot_{args.poisoned_feat_num}.npy"), allow_pickle=True)
@@ -80,9 +82,36 @@ if __name__ == "__main__":
         x = [t / 6000 for t in x]
 
         ax.stackplot(x, y1_, y2_, y3, baseline="zero", colors=colors, labels=labels)
-        ax.axvline(x=args.poisoned_ins_num / 6000, color='black', label='Actual Modification Amount', linestyle='dashed',
+        ax.axvline(x=args.poisoned_ins_num / 6000, color='black', label='Actual Modification Amount',
+                   linestyle='dashed',
                    linewidth=0.5)
         x_max = max(x_max, max(x))
+
+        with open(f"./{args.load_dir}/{args.save_file_name}.csv", 'w', newline='') as csvfile:
+            spamwriter = csv.writer(csvfile, delimiter=',',
+                                    quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            header = ['x', 'y1', 'y2', 'y3']
+            spamwriter.writerow(header)
+            p = 0
+            for i in np.linspace(0, x_max, args.point_num):
+                res = []
+                if i == 0:
+                    y1_new, y2_new, y3_new = y1_[0], y2_[0], y3[0]
+                elif i > x[p]:
+                    while i > x[p]: p += 1
+
+
+                    def interpolate(y1, y2, x1, x2, x):
+                        return (y1 * (x2 - x) + y2 * (x - x1)) / (x2 - x1)
+
+
+                    y1_new = interpolate(y1_[p - 1], y1_[p], x[p - 1], x[p], i)
+                    y2_new = interpolate(y2_[p - 1], y2_[p], x[p - 1], x[p], i)
+                    y3_new = interpolate(y3[p - 1], y3[p], x[p - 1], x[p], i)
+
+                spamwriter.writerow([i, y1_new, y2_new, y3_new])
+
+
     else:
         warnings.warn(f"{os.path.join(folder, f'plot_{args.poisoned_feat_num}.npy')} does not detected!")
         exit(0)
