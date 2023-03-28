@@ -16,10 +16,10 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
                                           dtype=np.int)
     aggregate_result[np.arange(0, test_size), -1] = data_loader.y_test
     aggregate_noise_result[np.arange(0, test_size), -1] = data_loader.y_test
-
-    remaining = args.N - np.sum(aggregate_result[0, :-1])
+    # set the DPA partition id
+    data_loader.data_processor.DPA_partition_cnt = np.sum(aggregate_result[0, :-1])
     datagen = None
-    for i in trange(remaining):
+    for i in trange(np.sum(aggregate_result[0, :-1]), args.N):
         key_dict = {0: 0, 1: 1, 2: 2}  # used for imdb dataset to get word idx
         X, y = data_loader.data_processor.process_train(key_dict)
         # using the last index for the ground truth label
@@ -80,10 +80,11 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
                 aggregate_noise_result[np.arange(0, test_size), prediction_label_cert] += 1
 
         if args.model_save_dir is not None:
-            model.save(args.model_save_dir)
+            model.save(args.model_save_dir, str(i))
         model.init()
         if i % 100 == 0:
-            np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))
+            np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"),
+                    (aggregate_result, aggregate_noise_result))
 
     np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))
     print(aggregate_result, aggregate_noise_result)

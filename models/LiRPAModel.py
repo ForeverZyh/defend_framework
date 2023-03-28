@@ -21,6 +21,75 @@ class LiRPAModel(ABC):
         self.init_model = model_ori
         self.init()
 
+    def adv_attack(self, data, target, eps: float):
+        data = self.data_aug(data)
+        # adapted from torchattack
+        adv_images = data + torch.empty_like(data).uniform_(-eps, eps)
+        adv_images = torch.clamp(adv_images, min=0, max=1).detach()
+
+        alpha = self.args.SABR_alpha
+        for i in range(self.args.SABR_step):
+            if i == 4 or i == 7:
+                alpha *= 0.1
+            adv_images.requires_grad = True
+            output = self.model(adv_images)
+            regular_ce = CrossEntropyLoss()(output, target)  # regular CrossEntropyLoss used for warming up
+
+            # Update adversarial images
+            grad = torch.autograd.grad(regular_ce, adv_images,
+                                       retain_graph=False, create_graph=False)[0]
+
+            adv_images = adv_images.detach() + alpha * grad.sign()
+            delta = torch.clamp(adv_images - data, min=-eps, max=eps)
+            adv_images = torch.clamp(data + delta, min=0, max=1).detach()
+
+        delta = torch.clamp(adv_images - data, min=-eps * (1 - self.args.SABR_lambda),
+                            max=eps * (1 - self.args.SABR_lambda))
+        adv_images = torch.clamp(data + delta, min=0, max=1).detach()
+
+        return adv_images
+
+    def adv_attack_l0_one_pixel(self, data, target, eps: float):
+        data = self.data_aug(data)
+
+        def clip_delta(d, eps):
+            # retain the element with the largest absolute value, setting other to zero
+            d = torch.clamp(d, min=-eps, max=eps)
+            d = d.reshape(d.shape[0], -1)
+            _, idx = d.abs().max(dim=1, keepdim=True)
+            d = torch.zeros_like(d).scatter_(1, idx, d.gather(1, idx))
+            mask = torch.zeros_like(d).scatter_(1, idx, torch.ones_like(idx, dtype=torch.float32))
+            mask = mask.reshape(data.shape)
+            d = d.reshape(data.shape)
+            return d, mask
+
+        # adapted from torchattack
+        adv_images = data + torch.empty_like(data).uniform_(-eps, eps)
+        adv_images = torch.clamp(adv_images, min=0, max=1).detach()
+        delta, _ = clip_delta(adv_images - data, eps)
+        adv_images = torch.clamp(data + delta, min=0, max=1).detach()
+
+        alpha = self.args.SABR_alpha
+        for i in range(self.args.SABR_step):
+            if i == 4 or i == 7:
+                alpha *= 0.1
+            adv_images.requires_grad = True
+            output = self.model(adv_images)
+            regular_ce = CrossEntropyLoss()(output, target)  # regular CrossEntropyLoss used for warming up
+
+            # Update adversarial images
+            grad = torch.autograd.grad(regular_ce, adv_images,
+                                       retain_graph=False, create_graph=False)[0]
+
+            adv_images = adv_images.detach() + alpha * grad.sign()
+            delta, _ = clip_delta(adv_images - data, eps)
+            adv_images = torch.clamp(data + delta, min=0, max=1).detach()
+
+        delta, mask = clip_delta(adv_images - data, eps * (1 - self.args.SABR_lambda))
+        adv_images = torch.clamp(data + delta, min=0, max=1).detach()
+
+        return adv_images, mask.detach()
+
     def save(self, save_path, file_name="0"):
         torch.save(self.model.state_dict(), os.path.join(save_path, file_name))
 
@@ -42,7 +111,8 @@ class LiRPAModel(ABC):
         loader = DataLoader(data, batch_size=batch_size, shuffle=True, pin_memory=True)
 
         ## Step 4 prepare optimizer, epsilon scheduler and learning rate scheduler
-        eps_scheduler = eval(self.args.scheduler_name)(self.args.eps * self.args.eps_train_ratio, self.args.scheduler_opts)
+        eps_scheduler = eval(self.args.scheduler_name)(self.args.eps * self.args.eps_train_ratio,
+                                                       self.args.scheduler_opts)
         opt = optim.Adam(self.model.parameters(), lr=self.lr)
         lr_scheduler = optim.lr_scheduler.StepLR(opt, step_size=10, gamma=0.5)
 
@@ -63,7 +133,8 @@ class LiRPAModel(ABC):
             print("Test accuracy: ", np.mean(predictions == np.argmax(y_test, axis=-1)))
             predictions_cert = predictions * verified + (1 - verified) * self.n_classes
             print("Certified accuracy: ", np.mean(predictions_cert == np.argmax(y_test, axis=-1)))
-            print("Approximate bd accuracy: ", np.mean(predictions_cert == np.argmax(y_test, axis=-1)) - np.mean((predictions_cert != np.argmax(y_test, axis=-1)) * verified) / (self.n_classes - 1))
+            print("Approximate bd accuracy: ", np.mean(predictions_cert == np.argmax(y_test, axis=-1)) - np.mean(
+                (predictions_cert != np.argmax(y_test, axis=-1)) * verified) / (self.n_classes - 1))
             return predictions, predictions_cert
 
     def test(self, eps_scheduler, loader):
@@ -165,6 +236,13 @@ class LiRPAModel(ABC):
         for i, (data, labels) in enumerate(loader):
             eps_scheduler.step_batch()
             eps = eps_scheduler.get_eps()
+            if list(self.model.parameters())[0].is_cuda:
+                data, labels = data.cuda(), labels.cuda()
+            mask = None
+            if data_aug is not None:
+                data = data_aug(data, eps=eps, target=labels)
+                if len(data) == 2:
+                    data, mask = data
             # For small eps just use natural training, no need to compute LiRPA bounds
             batch_method = "robust"
             if eps < 1e-20:
@@ -178,17 +256,18 @@ class LiRPAModel(ABC):
             c = (c[I].view(data.size(0), self.n_classes - 1, self.n_classes))
             # bound input for Linf norm used only
             if norm == np.inf:
-                data_ub = torch.clamp(data + eps, max=1)
-                data_lb = torch.clamp(data - eps, min=0)
+                if self.args.SABR:
+                    if mask is None:
+                        data_ub = torch.clamp(data + eps * self.args.SABR_lambda, max=1)
+                        data_lb = torch.clamp(data - eps * self.args.SABR_lambda, min=0)
+                    else:
+                        data_ub = torch.clamp(data + eps * self.args.SABR_lambda * mask, max=1)
+                        data_lb = torch.clamp(data - eps * self.args.SABR_lambda * mask, min=0)
+                else:
+                    data_ub = torch.clamp(data + eps, max=1)
+                    data_lb = torch.clamp(data - eps, min=0)
             else:
                 data_ub = data_lb = data
-
-            if list(self.model.parameters())[0].is_cuda:
-                data, labels, c = data.cuda(), labels.cuda(), c.cuda()
-                data_lb, data_ub = data_lb.cuda(), data_ub.cuda()
-
-            if data_aug is not None:
-                data = data_aug(data)
 
             # Specify Lp norm perturbation.
             # When using Linf perturbation, we manually set element-wise bound x_L and x_U. eps is not used for Linf norm.
@@ -206,6 +285,7 @@ class LiRPAModel(ABC):
                          x.size(0))
 
             if batch_method == "robust":
+                factor = (eps_scheduler.get_max_eps() - eps) / eps_scheduler.get_max_eps()
                 if self.args.bound_type == "IBP":
                     lb, ub = self.model.compute_bounds(IBP=True, C=c, method=None)
                 elif self.args.bound_type == "CROWN":
@@ -213,7 +293,6 @@ class LiRPAModel(ABC):
                 elif self.args.bound_type == "CROWN-IBP":
                     # lb, ub = model.compute_bounds(ptb=ptb, IBP=True, x=data, C=c, method="backward")  # pure IBP bound
                     # we use a mixed IBP and CROWN-IBP bounds, leading to better performance (Zhang et al., ICLR 2020)
-                    factor = (eps_scheduler.get_max_eps() - eps) / eps_scheduler.get_max_eps()
                     ilb, iub = self.model.compute_bounds(IBP=True, C=c, method=None)
                     if factor < 1e-5:
                         lb = ilb
@@ -230,8 +309,10 @@ class LiRPAModel(ABC):
                 fake_labels = torch.zeros(size=(lb.size(0),), dtype=torch.int64, device=lb.device)
                 robust_ce = CrossEntropyLoss()(-lb_padded, fake_labels)
             if batch_method == "robust":
-                # loss = robust_ce * (1 - factor) + regular_ce * factor
-                loss = robust_ce
+                if norm > 0:
+                    loss = robust_ce * (1 - factor) + regular_ce * factor
+                else:
+                    loss = robust_ce
             elif batch_method == "natural":
                 loss = regular_ce
             loss.backward()
@@ -244,6 +325,6 @@ class LiRPAModel(ABC):
                 #     # If any margin is < 0 this example is counted as an error
                 meter.update('Verified_Err', torch.sum((lb < 0).any(dim=1)).item() / data.size(0), data.size(0))
             # if i % 50 == 0:
-                # print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))
+            #     print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))
 
         # print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))

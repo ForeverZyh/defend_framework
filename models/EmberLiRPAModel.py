@@ -10,14 +10,19 @@ class EmberModel(LiRPAModel):
     def __init__(self, n_features, n_classes, args, device, lr=1e-3):
         super(EmberModel, self).__init__([1, 1, n_features], n_classes, args, device, mlp_4layer, lr)
 
+    def data_aug(self, data, **kwargs):
+        data += torch.clamp(torch.normal(torch.zeros_like(data), torch.ones_like(data) * 0.1), min=0, max=1)
+        return data
+
     def fit(self, X, y, batch_size, epochs, dummy=None):
         X = np.expand_dims(X, axis=[1, 2])
 
-        def data_aug(data):
-            data += torch.clamp(torch.normal(torch.zeros_like(data), torch.ones_like(data) * 0.1), min=0, max=1)
-            return data
+        if not self.args.SABR:
+            aug_func = self.data_aug
+        else:
+            aug_func = self.adv_attack_l0_one_pixel
 
-        super(EmberModel, self).fit(X, y, batch_size, epochs, data_aug)
+        super(EmberModel, self).fit(X, y, batch_size, epochs, aug_func)
 
     def evaluate(self, x_test, y_test):
         x_test = np.expand_dims(x_test, axis=[1, 2])

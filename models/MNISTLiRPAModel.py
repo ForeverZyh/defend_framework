@@ -2,6 +2,9 @@ from torchvision import transforms
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from functools import partial
+import torch
+from torch.nn import CrossEntropyLoss
 
 from models.LiRPAModel import LiRPAModel
 
@@ -10,15 +13,20 @@ class MNISTModel(LiRPAModel):
     def __init__(self, n_features, n_classes, args, device, lr=1e-3):
         super(MNISTModel, self).__init__(n_features, n_classes, args, device, eval(args.model), lr)
 
+    def data_aug(self, data, **kwargs):
+        data = transforms.RandomCrop(28, 3)(data)
+        data = transforms.RandomRotation(10)(data)
+        return data
+
     def fit(self, X, y, batch_size, epochs, dummy=None):
         X = np.transpose(X, (0, 3, 1, 2))
 
-        def data_aug(data):
-            data = transforms.RandomCrop(28, 3)(data)
-            data = transforms.RandomRotation(10)(data)
-            return data
+        if not self.args.SABR:
+            aug_func = self.data_aug
+        else:
+            aug_func = self.adv_attack
 
-        super(MNISTModel, self).fit(X, y, batch_size, epochs, data_aug)
+        super(MNISTModel, self).fit(X, y, batch_size, epochs, aug_func)
 
     def evaluate(self, x_test, y_test):
         x_test = np.transpose(x_test, (0, 3, 1, 2))
@@ -38,6 +46,7 @@ class mlp_3layer(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
+
 
 class cnn_4layer(nn.Module):
     def __init__(self, in_ch, in_dim, width=2, linear_size=256):

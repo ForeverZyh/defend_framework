@@ -81,5 +81,9 @@ def get_arguments():
     parser.add_argument("--bound_opts", type=str, default=None, choices=["same-slope", "zero-lb", "one-lb"],
                         help='bound options')
     parser.add_argument("--conv_mode", type=str, choices=["matrix", "patches"], default="patches")
+    parser.add_argument("--SABR", action='store_true', help="do SABR training")
+    parser.add_argument("--SABR_lambda", type=float, default=0.4, help='lambda for SABR')
+    parser.add_argument("--SABR_alpha", type=float, default=0.5, help='alpha for SABR')
+    parser.add_argument("--SABR_step", type=int, default=8, help='step for SABR')
 
     return parser

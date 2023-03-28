@@ -10,15 +10,20 @@ class CIFAR10Model(LiRPAModel):
     def __init__(self, n_features, n_classes, args, device, lr=1e-3):
         super(CIFAR10Model, self).__init__(n_features, n_classes, args, device, eval(args.model), lr)
 
+    def data_aug(self, data, **kwargs):
+        data = transforms.RandomCrop(32, 3)(data)
+        data = transforms.RandomRotation(10)(data)
+        return data
+
     def fit(self, X, y, batch_size, epochs, dummy=None):
         X = np.transpose(X, (0, 3, 1, 2))
 
-        def data_aug(data):
-            data = transforms.RandomCrop(32, 3)(data)
-            data = transforms.RandomRotation(10)(data)
-            return data
+        if not self.args.SABR:
+            aug_func = self.data_aug
+        else:
+            aug_func = self.adv_attack
 
-        super(CIFAR10Model, self).fit(X, y, batch_size, epochs, data_aug)
+        super(CIFAR10Model, self).fit(X, y, batch_size, epochs, aug_func)
 
     def evaluate(self, x_test, y_test):
         x_test = np.transpose(x_test, (0, 3, 1, 2))
