@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 from torch.utils.data import TensorDataset, DataLoader
 import torch.optim as optim
 from torch.nn import CrossEntropyLoss
-import torch
-import os
+import time
+
 from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import *
 from auto_LiRPA.eps_scheduler import LinearScheduler, AdaptiveScheduler, SmoothedScheduler, FixedScheduler
@@ -20,6 +20,8 @@ class LiRPAModel(ABC):
         self.device = device
         self.init_model = model_ori
         self.init()
+        self.train_time = 0
+        self.test_time = 0
 
     def adv_attack(self, data, target, eps: float):
         data = self.data_aug(data)
@@ -137,6 +139,8 @@ class LiRPAModel(ABC):
             print("Certified accuracy: ", np.mean(predictions_cert == np.argmax(y_test, axis=-1)))
             print("Approximate bd accuracy: ", np.mean(predictions_cert == np.argmax(y_test, axis=-1)) - np.mean(
                 (predictions_cert != np.argmax(y_test, axis=-1)) * verified) / (self.n_classes - 1))
+            print("Train time: ", self.train_time)
+            print("Test time: ", self.test_time)
             return predictions, predictions_cert
 
     def test(self, eps_scheduler, loader):
@@ -146,6 +150,7 @@ class LiRPAModel(ABC):
         eps_scheduler.eval()
         predictions = np.array([], dtype=int)
         verified = np.array([], dtype=bool)
+        start_time = time.time()
 
         for i, (data, _) in enumerate(loader):
             eps_scheduler.step_batch()
@@ -192,15 +197,9 @@ class LiRPAModel(ABC):
             elif self.args.bound_type == "CROWN":
                 lb, ub = self.model.compute_bounds(IBP=False, C=c, method="backward", bound_upper=False)
             elif self.args.bound_type == "CROWN-IBP":
-                # lb, ub = model.compute_bounds(ptb=ptb, IBP=True, x=data, C=c, method="backward")  # pure IBP bound
-                # we use a mixed IBP and CROWN-IBP bounds, leading to better performance (Zhang et al., ICLR 2020)
-                factor = 0
-                ilb, iub = self.model.compute_bounds(IBP=True, C=c, method=None)
-                if factor < 1e-5:
-                    lb = ilb
-                else:
-                    clb, cub = self.model.compute_bounds(IBP=False, C=c, method="backward", bound_upper=False)
-                    lb = clb * factor + ilb * (1 - factor)
+                # Similar to CROWN-IBP but no mix between IBP and CROWN bounds.
+                lb, ub = self.model.compute_bounds(IBP=True, C=c, method=None)
+                lb, ub = self.model.compute_bounds(IBP=False, C=c, method="backward", bound_upper=False)
             elif self.args.bound_type == "CROWN-FAST":
                 # Similar to CROWN-IBP but no mix between IBP and CROWN bounds.
                 lb, ub = self.model.compute_bounds(IBP=True, C=c, method=None)
@@ -224,10 +223,12 @@ class LiRPAModel(ABC):
             verified = np.append(verified, batch_verified)
 
         # print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))
+        self.test_time += time.time() - start_time
         return predictions, verified
 
     def train(self, eps_scheduler, opt, loader, data_aug):
         norm = float(self.args.norm)
+        start_time = time.time()
 
         meter = MultiAverageMeter()
         self.model.train()
@@ -328,5 +329,5 @@ class LiRPAModel(ABC):
                 meter.update('Verified_Err', torch.sum((lb < 0).any(dim=1)).item() / data.size(0), data.size(0))
             # if i % 50 == 0:
             #     print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))
-
+        self.train_time += time.time() - start_time
         # print('[{:4d}]: eps={:.8f} {}'.format(i, eps, meter))
