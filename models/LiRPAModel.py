@@ -90,8 +90,10 @@ class LiRPAModel(ABC):
 
         return adv_images, mask.detach()
 
-    def save(self, save_path, file_name="0"):
+    def save(self, save_path, file_name="0", predictions=None):
         torch.save(self.model.state_dict(), os.path.join(save_path, file_name))
+        if predictions is not None:
+            np.save(os.path.join(save_path, file_name + "_predictions"), predictions)
 
     def init(self):
         ## Step 1: Initial original model as usual

@@ -1,0 +1,17 @@
+model:
+  name: cifar10_cnn_4layer_def
+  path: ../../defend_framework/ab_crown_proxy/model
+data:
+  dataset: Customized_cifar10
+specification:
+  epsilon: 0.00784313725
+attack:
+  pgd_restarts: 50
+solver:
+  batch_size: 1024
+  beta-crown:
+    iteration: 20
+bab:
+  timeout: 400
+general:
+  device: cuda:1
