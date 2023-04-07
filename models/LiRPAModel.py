@@ -207,7 +207,7 @@ class LiRPAModel(ABC):
             mask = None
             if data_aug is not None:
                 data = data_aug(data, eps=eps, target=labels)
-                if len(data) == 2:
+                if isinstance(data, tuple):
                     data, mask = data
             # For small eps just use natural training, no need to compute LiRPA bounds
             batch_method = "robust"
