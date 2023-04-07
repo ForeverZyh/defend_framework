@@ -80,7 +80,7 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
                 aggregate_noise_result[np.arange(0, test_size), prediction_label_cert] += 1
 
         if args.model_save_dir is not None:
-            model.save(args.model_save_dir, str(i), prediction_label)
+            model.save(args.model_save_dir, str(i), prediction_label if args.SABR else None)
         model.init()
         if i % 100 == 0:
             np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"),

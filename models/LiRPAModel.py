@@ -51,47 +51,6 @@ class LiRPAModel(ABC):
 
         return adv_images
 
-    def adv_attack_l0_one_pixel(self, data, target, eps: float):
-        data = self.data_aug(data)
-
-        def clip_delta(d, eps):
-            # retain the element with the largest absolute value, setting other to zero
-            d = torch.clamp(d, min=-eps, max=eps)
-            d = d.reshape(d.shape[0], -1)
-            _, idx = d.abs().max(dim=1, keepdim=True)
-            d = torch.zeros_like(d).scatter_(1, idx, d.gather(1, idx))
-            mask = torch.zeros_like(d).scatter_(1, idx, torch.ones_like(idx, dtype=torch.float32))
-            mask = mask.reshape(data.shape)
-            d = d.reshape(data.shape)
-            return d, mask
-
-        # adapted from torchattack
-        adv_images = data + torch.empty_like(data).uniform_(-eps, eps)
-        adv_images = torch.clamp(adv_images, min=0, max=1).detach()
-        delta, _ = clip_delta(adv_images - data, eps)
-        adv_images = torch.clamp(data + delta, min=0, max=1).detach()
-
-        alpha = self.args.SABR_alpha
-        for i in range(self.args.SABR_step):
-            if i == 4 or i == 7:
-                alpha *= 0.1
-            adv_images.requires_grad = True
-            output = self.model(adv_images)
-            regular_ce = CrossEntropyLoss()(output, target)  # regular CrossEntropyLoss used for warming up
-
-            # Update adversarial images
-            grad = torch.autograd.grad(regular_ce, adv_images,
-                                       retain_graph=False, create_graph=False)[0]
-
-            adv_images = adv_images.detach() + alpha * grad.sign()
-            delta, _ = clip_delta(adv_images - data, eps)
-            adv_images = torch.clamp(data + delta, min=0, max=1).detach()
-
-        delta, mask = clip_delta(adv_images - data, eps * (1 - self.args.SABR_lambda))
-        adv_images = torch.clamp(data + delta, min=0, max=1).detach()
-
-        return adv_images, mask.detach()
-
     def save(self, save_path, file_name="0", predictions=None):
         torch.save(self.model.state_dict(), os.path.join(save_path, file_name))
         if predictions is not None:
@@ -129,11 +88,15 @@ class LiRPAModel(ABC):
     def evaluate(self, x_test, y_test):
         data = TensorDataset(torch.Tensor(x_test),
                              torch.Tensor(y_test).long().max(dim=-1)[1])
-        loader = DataLoader(data, batch_size=256, shuffle=False, pin_memory=True)
+        batch_size = 256
+        loader = DataLoader(data, batch_size=batch_size, shuffle=False, pin_memory=True)
 
         eps_scheduler = FixedScheduler(self.args.eps)
         with torch.no_grad():
-            predictions, verified = self.test(eps_scheduler, loader)
+            if self.args.SABR and self.args.dataset == "ember":
+                predictions, verified = self.test_exhaustive(batch_size, loader)
+            else:
+                predictions, verified = self.test(eps_scheduler, loader)
             print("Test accuracy: ", np.mean(predictions == np.argmax(y_test, axis=-1)))
             predictions_cert = predictions * verified + (1 - verified) * self.n_classes
             print("Certified accuracy: ", np.mean(predictions_cert == np.argmax(y_test, axis=-1)))
