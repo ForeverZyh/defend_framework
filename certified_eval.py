@@ -150,7 +150,7 @@ def get_pa_pb(top_1, top_2, bags, alpha, n_classes):
     return p_a, p_b
 
 
-def precompute_DPA(res):
+def precompute_DPA(res, sort=True):
     # res.shape: (n_examples, n_classes + 2)
     radius = []
     cor_cnt = 0
@@ -181,9 +181,10 @@ def precompute_DPA(res):
                 r = -3 - r // 2 // 2
             radius.append(r)
 
-    radius.sort()
-    mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
-    print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
+    if sort:
+        radius.sort()
+        mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
+        print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
     return radius
 
 
@@ -264,7 +265,7 @@ def precompute(res, conf, bound_cal: BoundCalculator, parallel_num=None, paralle
     return cal_statistics(res, bags, alpha, n_classes, bound_cal.stats_cache, bound_cal.s)
 
 
-def cal_statistics(res, bags, alpha, n_classes, cache, s):
+def cal_statistics(res, bags, alpha, n_classes, cache, s, sort=True):
     cor_cnt = 0
     auc = 0
     radius = []
@@ -289,9 +290,10 @@ def cal_statistics(res, bags, alpha, n_classes, cache, s):
             else:
                 radius.append(-2)
 
-    radius.sort()
-    mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
-    print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
+    if sort:
+        radius.sort()
+        mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
+        print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
     return radius
 
 
