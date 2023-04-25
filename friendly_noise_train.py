@@ -354,12 +354,12 @@ def train(args, trainloader, noaug_trainloader, test_loader, model, optimizer, s
 
             if not args.no_progress:
                 p_bar.set_description(
-                    "Train Epoch: {epoch}/{epochs:4}. Iter: {batch:4}/{iter:4}. LR: {lr:.4f}. Data: {data:.3f}s. Batch: {bt:.3f}s. Loss: {loss:.4f}. ".format(
+                    "Train Epoch: {epoch}/{epochs:4}. Iter: {batch:4}/{iter:4}. Data: {data:.3f}s. Batch: {bt:.3f}s. Loss: {loss:.4f}. ".format(
                         epoch=epoch + 1,
                         epochs=args.epochs,
                         batch=batch_idx + 1,
                         iter=args.eval_step,
-                        lr=scheduler.get_last_lr()[0],
+                        # lr=scheduler.get_last_lr()[0],
                         data=data_time.avg,
                         bt=batch_time.avg,
                         loss=losses.avg))
@@ -370,7 +370,7 @@ def train(args, trainloader, noaug_trainloader, test_loader, model, optimizer, s
         if not args.no_progress:
             p_bar.close()
 
-        scheduler.step()
+        # scheduler.step()
 
         if epoch % args.val_freq != 0 and epoch != args.epochs - 1:
             continue
@@ -520,7 +520,7 @@ def main():
                         help='initial learning rate')
     parser.add_argument('--warmup', default=0, type=int,
                         help='warmup epochs (default: 0)')
-    parser.add_argument('--wdecay', default=5e-4, type=float,
+    parser.add_argument('--wdecay', default=1e-6, type=float,
                         help='weight decay')
     parser.add_argument('--nesterov', action='store_true', default=True,
                         help='use nesterov momentum')
@@ -713,14 +713,14 @@ def main():
     ]
     optimizer = optim.SGD(grouped_parameters, lr=args.lr,
                           momentum=0.9, nesterov=args.nesterov)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, args.steps)
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, args.steps)
     if args.warmup > 0:
         logger.info('Warm start learning rate')
         raise NotImplementedError
         # lr_scheduler_f = GradualWarmupScheduler(optimizer, 1.0, args.warmup, scheduler)
     else:
         logger.info('No Warm start')
-        lr_scheduler_f = scheduler
+        # lr_scheduler_f = scheduler
 
     loss_fn = nn.CrossEntropyLoss(reduction='none')
 
@@ -736,7 +736,7 @@ def main():
         args.start_epoch = checkpoint['epoch']
         model.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
-        scheduler.load_state_dict(checkpoint['scheduler'])
+        # scheduler.load_state_dict(checkpoint['scheduler'])
 
     if args.load_friendly_noise:
         logger.info(f"Loading friendly noise from {args.load_friendly_noise}...")
@@ -758,7 +758,7 @@ def main():
     #     'optimizer': optimizer.state_dict(),
     #     'scheduler': scheduler.state_dict(),
     # }, is_best=False, checkpoint=args.out, filename='init.pth.tar')
-    train(args, train_loader, noaug_train_loader, test_loader, model, optimizer, lr_scheduler_f, target_img,
+    train(args, train_loader, noaug_train_loader, test_loader, model, optimizer, None, target_img,
           target_class, poisoned_label, None, loss_fn, None, None, None)
 
 
