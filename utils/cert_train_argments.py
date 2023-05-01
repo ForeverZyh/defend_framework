@@ -20,7 +20,7 @@ def get_arguments():
 
     # poisoning defence parameters
     parser.add_argument("--select_strategy", default=None,
-                        choices=["bagging_replace", "bagging_wo_replace", "binomial", "DPA"],
+                        choices=["bagging_replace", "bagging_wo_replace", "binomial", "DPA", "FPA"],
                         help="selection strategy")
     parser.add_argument("--noise_strategy", default=None,
                         choices=["feature_flipping", "label_flipping", "all_flipping", "RAB_gaussian", "RAB_uniform"

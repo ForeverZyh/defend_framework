@@ -83,7 +83,10 @@ if __name__ == "__main__":
         else:
             data_loader = EmberDataPreProcessor(args)
         if args.no_lirpa:
-            model = EmberModel.EmberModel(data_loader.n_features, data_loader.n_classes, args.lr)
+            if args.select_strategy == "FPA":
+                model = EmberModel.EmberModelOri(args.k, data_loader.n_classes, args.lr)
+            else:
+                model = EmberModel.EmberModel(data_loader.n_features, data_loader.n_classes, args.lr)
         else:
             model = EmberLiRPAModel.EmberModel(data_loader.n_features, data_loader.n_classes, args, device, lr=args.lr)
     else:

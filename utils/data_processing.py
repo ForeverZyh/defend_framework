@@ -241,6 +241,52 @@ class DataProcessor:
         return ret_X
 
 
+class FPADataProcessor(DataProcessor):
+    def __init__(self, X, y, select_strategy=None, k=None, noise_strategy=None, dataset=None, **kwargs):
+        """
+        The initializer of data processor
+        :param X: the training data (features)
+        :param y: the training labels
+        :param select_strategy: ["bagging_replace", "bagging_wo_replace", "binomial"]
+            bagging_replace: bagging with replacement (the original bagging paper)
+            bagging_wo_replace: bagging without replacement
+            binomial: select each instance with probability p = k / |X|
+        :param k: the size of the (expected) bag
+        :param noise_strategy: ["feature_flipping", "label_flipping", "RAB_gaussian", "RAB_uniform"]
+            feature_flipping / label_flipping: each feature / label remains with alpha, flipped with 1 - alpha
+            RAB_gaussian: add gaussian noise of mu=0, sigma
+            RAB_uniform: add uniform noise of U[a, b]
+        :param dataset: the name of the dataset
+        :param kwargs: the parameters for each noise strategy
+        """
+        self.select_strategy = select_strategy
+        self.noise_strategy = noise_strategy
+        self.dataset = dataset
+        self.X = X
+        self.y = y
+        self.DPA_partition_cnt = 0
+        assert self.select_strategy == "FPA"
+        self.k = k
+        assert 0 < k <= X.shape[1]
+        assert dataset in EMBER_DATASET and noise_strategy is None
+        self.ids = np.arange(self.X.shape[1])
+        np.random.seed(42)
+        np.random.shuffle(self.ids)
+        self.minmax = MinMaxScaler(clip=True)
+        self.X = self.minmax.fit_transform(self.X)
+
+    def process_train(self, key_dict):
+        ret_X = self.X.copy()
+        ret_y = self.y.copy()  # make sure the original data is not modified
+        ids = self.ids[self.DPA_partition_cnt * self.k:(self.DPA_partition_cnt + 1) * self.k]
+        self.DPA_partition_cnt += 1
+        return ret_X[:, ids], ret_y
+
+    def process_test(self, X, fix_noise):
+        ids = self.ids[(self.DPA_partition_cnt - 1) * self.k:self.DPA_partition_cnt * self.k]  # already increased
+        return X[:, ids]
+
+
 class DataPreprocessor:
     def __init__(self):
         pass
@@ -256,6 +302,11 @@ class DataPreprocessor:
 
     @staticmethod
     def build_processor(x_train, y_train, args):
+        if args.select_strategy is not None and args.select_strategy == "FPA":
+            return FPADataProcessor(x_train, y_train, select_strategy=args.select_strategy, k=args.k,
+                                    noise_strategy=args.noise_strategy, K=args.K, alpha=args.alpha,
+                                    sigma=args.sigma, a=args.a, b=args.b, dataset=args.dataset, l=args.l,
+                                    test_alpha=args.test_alpha, N=args.N)
         return DataProcessor(x_train, y_train, select_strategy=args.select_strategy, k=args.k,
                              noise_strategy=args.noise_strategy, K=args.K, alpha=args.alpha,
                              sigma=args.sigma, a=args.a, b=args.b, dataset=args.dataset, l=args.l,

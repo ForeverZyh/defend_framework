@@ -48,7 +48,7 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
             else:
                 x_test = categorized
         elif args.noise_strategy in ["RAB_gaussian", "RAB_uniform"] or (
-                args.dataset in EMBER_DATASET and args.select_strategy == "DPA"):
+                args.dataset in EMBER_DATASET and args.select_strategy in ["DPA", "FPA"]):
             x_test = data_loader.data_processor.minmax.transform(x_test)
 
         if datagen is not None:
@@ -56,7 +56,7 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
         else:
             model.fit(X, y, args.batch_size, args.epochs)
 
-        if args.select_strategy != "DPA":
+        if args.select_strategy not in ["DPA", "FPA"]:
             if args.dataset in EMBER_DATASET and args.noise_strategy is None:
                 prediction_label = model.evaluate(data_loader.data_processor.normal.transform(x_test), y_test)
             else:
@@ -69,7 +69,7 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
                 X_test = data_loader.data_processor.process_test(x_test, args.fix_noise)
                 prediction_label = model.evaluate(X_test, y_test)
                 aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
-        else:
+        elif args.select_strategy == "DPA":
             if args.no_lirpa:
                 prediction_label = model.evaluate(x_test, y_test)
                 aggregate_result[np.arange(0, test_size), prediction_label] += 1
@@ -78,6 +78,14 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
                 prediction_label, prediction_label_cert = model.evaluate(x_test, y_test)
                 aggregate_result[np.arange(0, test_size), prediction_label] += 1
                 aggregate_noise_result[np.arange(0, test_size), prediction_label_cert] += 1
+        elif args.select_strategy == "FPA":
+            assert args.no_lirpa
+            x_test = data_loader.data_processor.process_test(x_test, args.fix_noise)
+            prediction_label = model.evaluate(x_test, y_test)
+            aggregate_result[np.arange(0, test_size), prediction_label] += 1
+            aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
+        else:
+            raise NotImplementedError
 
         if args.model_save_dir is not None:
             model.save(args.model_save_dir, str(i), prediction_label if args.SABR else None)

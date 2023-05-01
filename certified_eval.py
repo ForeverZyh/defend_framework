@@ -188,6 +188,43 @@ def precompute_DPA(res, sort=True):
     return radius
 
 
+def precompute_FPA(res, sort=True):
+    # res.shape: (n_examples, n_classes + 2)
+    radius = []
+    cor_cnt = 0
+    auc = 0
+
+    for i in range(len(res)):
+        majority = np.argmax(res[i][:-1])
+        runner_up = min([j for j in range(res.shape[1] - 1) if j != majority])
+        top_1 = res[i][majority]
+        top_2 = res[i][runner_up]
+
+        if majority == res[i][-1]:
+            cor_cnt += 1
+            r = top_1 - top_2 - (majority > runner_up)
+            if r < 0:
+                r = -1
+            else:
+                r = r // 2
+            radius.append(r)
+            if r > 0:
+                auc += r
+        else:
+            r = top_1 - top_2 - (majority > runner_up)
+            if r < 0:
+                r = -2
+            else:
+                r = -3 - r // 2
+            radius.append(r)
+
+    if sort:
+        radius.sort()
+        mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
+        print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
+    return radius
+
+
 def precompute_bag(res, conf, ex_in_bag, D):
     # res.shape: (n_examples, n_classes + 1)
     alpha = (1 - conf) / res.shape[0]
@@ -533,6 +570,7 @@ if __name__ == "__main__":
                     ret = get_abstain_DPA(res, poison_ins_num)
                     cache[poison_ins_num] = ret
                     np.save(cache_filename, cache)
-
+    elif args.select_strategy == "FPA":
+        np.save(cache_filename, precompute_FPA(res))
     else:
         raise NotImplementedError
