@@ -1,5 +1,18 @@
 import argparse
+import random
+import os
+import numpy as np
+import torch
 
+def seed_everything(seed=42):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def get_arguments():
     parser = argparse.ArgumentParser()
@@ -7,7 +20,7 @@ def get_arguments():
     # general training parameters
     parser.add_argument("-d", "--dataset",
                         choices=["ember", "mnist", "mnist17", "mnist01", "imdb", "ember_limited", "mnist17_limited",
-                                 "fmnist", "cifar10", "contagio", "cifar10-02"],
+                                 "fmnist", "cifar10", "contagio", "cifar10-02", "mnist-expand", "cifar10-expand"],
                         help="dataset type", required=True)
     parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument("--epochs", type=int, default=200, help="training epochs")

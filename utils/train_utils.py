@@ -101,5 +101,9 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
 def train_single(data_loader, model, args):
     # train single classifier for attacking
     model.fit(data_loader.x_train, keras.utils.to_categorical(data_loader.y_train, data_loader.n_classes),
-              args.batch_size, args.epochs)
+              args.batch_size, args.epochs,
+              x_test=data_loader.x_test,
+              y_test=keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes),
+              wandb=args.wandb
+              )
     # model.save(args.model_save_dir)

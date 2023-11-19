@@ -2,18 +2,24 @@ import random
 import os
 import json
 import time
-
+import torch
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
+import warnings
+import wandb
 
 from utils.data_processing import MNISTDataPreprocessor, MNIST17DataPreprocessor, MNIST01DataPreprocessor, \
-    CIFAR02DataPreprocessor
+    CIFAR02DataPreprocessor, CIFARExpandedDataPreprocessor
 from models.MNISTModel import MNISTModel, MNIST17Model, MNIST01Model
 from models.CIFAR10Model import CIFAR10Model
+from models.bagnet import BagNetModel
 from utils.train_utils import train_single
 from attack.BadNetAttack import BadNetAttackLabel, BadNetAttackNoLabel
-from utils.cert_train_argments import get_arguments
+from utils.cert_train_argments import get_arguments, seed_everything
+
+# silence ResourceWarning
+warnings.filterwarnings("ignore", category=ResourceWarning)
 
 if __name__ == "__main__":
     parser = get_arguments()
@@ -34,9 +40,12 @@ if __name__ == "__main__":
                         help="dir for save poisoned dataset"
                         )
     parser.add_argument("--load", action="store_true", help="whether to load the saved file")
+    parser.add_argument("--tau", default=0.5, type=float, help="the parameter tau in the defense")
+    parser.add_argument("--weight_decay", default=1e-2, type=float, help="weight decay for the training")
 
     # Set random seeds
     args = parser.parse_args()
+    seed_everything(args.seed)
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
 
     gpus = tf.config.list_physical_devices('GPU')
@@ -50,10 +59,7 @@ if __name__ == "__main__":
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
-
-    # random.seed(args.seed)
-    # np.random.seed(args.seed)
-    # tf.random.set_seed(args.seed)
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     # make dirs
     if not os.path.exists(args.save_poison_dir):
@@ -85,6 +91,9 @@ if __name__ == "__main__":
     elif args.dataset == "cifar10-02":
         DataPreprocessor_type = CIFAR02DataPreprocessor
         Model_type = CIFAR10Model
+    elif args.dataset == "cifar10-expand":
+        DataPreprocessor_type = CIFARExpandedDataPreprocessor
+        Model_type = BagNetModel
     else:
         raise NotImplementedError
 
@@ -108,18 +117,27 @@ if __name__ == "__main__":
             attack = BadNetAttackNoLabel.load(os.path.join(filepath, "data"))
         data_loader = attack.data_processor
 
-    model = Model_type(data_loader.n_features, data_loader.n_classes)
+    if args.dataset == "cifar10-expand":
+        model = Model_type(data_loader.n_features, data_loader.n_classes, lr=args.lr, device=device,
+                           patch_size=args.poisoned_feat_num, tau=args.tau, weight_decay=args.weight_decay)
+    else:
+        model = Model_type(data_loader.n_features, data_loader.n_classes)
+
+    args.wandb = wandb.init(project="poison_defense", name=args.exp_name, config=args.__dict__)
     train_single(data_loader, model, args)
     print("Clean Test Set:")
-    model.evaluate(data_loader.x_test, keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
+    res = model.evaluate(data_loader.x_test, keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
     print("Poisoned Test Set:")
+    res1 = model.evaluate(data_loader.x_test_poisoned,
+                          keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
+    model.save(filepath, predictions=res + res1)
     for i in range(data_loader.n_classes):
         idx = np.where(data_loader.y_test == i)[0]
         if attack_targets[i] is None:
             print(f"class {i} is not poisoned:")
             model.evaluate(data_loader.x_test_poisoned[idx],
-                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes))
+                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes), tune=False)
         else:
             print(f"class {i} is poisoned:")
             model.evaluate(data_loader.x_test_poisoned[idx],
-                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes))
+                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes), tune=False)

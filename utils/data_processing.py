@@ -1,6 +1,7 @@
 import os
 import pickle
 
+import torch
 import numpy as np
 from tensorflow.keras.datasets import mnist, imdb, cifar10, fashion_mnist
 from tensorflow import keras
@@ -8,6 +9,8 @@ import ember
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer, MinMaxScaler
+from torchvision import transforms
+import PIL
 
 from utils.ember_feature_utils import load_features
 from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET, CONTAGIO_DATASET
@@ -510,6 +513,35 @@ class CIFARDataPreprocessor(DataPreprocessor):
             self.x_train = np.minimum(np.floor(self.x_train * (args.K + 1)) / args.K, 1)
             self.x_test = np.minimum(np.floor(self.x_test * (args.K + 1)) / args.K, 1)
 
+        self.data_processor = self.build_processor(self.x_train, self.y_train, args)
+        print('x_train shape:', x_train.shape, self.y_train.shape)
+        print(x_train.shape[0], 'train samples')
+        print(x_test.shape[0], 'test samples')
+
+
+class CIFARExpandedDataPreprocessor(DataPreprocessor):
+    def __init__(self, args):
+        super(CIFARExpandedDataPreprocessor, self).__init__()
+        # input image dimensions
+        # img_rows, img_cols = 192, 192
+        img_rows, img_cols = 32, 32
+        self.n_classes = 10
+        self.n_features = (img_rows, img_cols, 3)
+
+        (x_train, self.y_train), (x_test, self.y_test) = cifar10.load_data()
+        self.y_test = np.reshape(self.y_test, -1)
+        self.y_train = np.reshape(self.y_train, -1)
+        # x_train = torch.tensor(np.transpose(x_train, (0, 3, 1, 2)))
+        # x_test = torch.tensor(np.transpose(x_test, (0, 3, 1, 2)))
+        # x_train = transforms.Resize((img_rows, img_cols))(x_train).numpy()
+        # x_test = transforms.Resize((img_rows, img_cols))(x_test).numpy()
+        # x_train = np.transpose(x_train, (0, 2, 3, 1)).astype('float32')
+        # x_test = np.transpose(x_test, (0, 2, 3, 1)).astype('float32')
+        x_train = x_train.astype('float32')
+        x_test = x_test.astype('float32')
+        self.x_train = x_train / 255
+        self.x_test = x_test / 255
+        assert args.noise_strategy is None
         self.data_processor = self.build_processor(self.x_train, self.y_train, args)
         print('x_train shape:', x_train.shape, self.y_train.shape)
         print(x_train.shape[0], 'train samples')

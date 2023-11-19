@@ -12,12 +12,13 @@ from utils.data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor
     CIFAR02DataPreprocessor
 from models import MNISTModel, IMDBTransformerModel, EmberModel, CIFAR10Model, ContagioModel
 from utils.train_utils import train_many
-from utils.cert_train_argments import get_arguments
+from utils.cert_train_argments import get_arguments, seed_everything
 
 if __name__ == "__main__":
     parser = get_arguments()
     # Set random seeds
     args = parser.parse_args()
+    seed_everything(args.seed)
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
 
     gpus = tf.config.list_physical_devices('GPU')
