@@ -150,7 +150,7 @@ def get_pa_pb(top_1, top_2, bags, alpha, n_classes):
     return p_a, p_b
 
 
-def precompute_DPA(res, sort=True):
+def precompute_DPA(res, in_place, at=None, sort=True):
     # res.shape: (n_examples, n_classes + 2)
     radius = []
     cor_cnt = 0
@@ -167,25 +167,52 @@ def precompute_DPA(res, sort=True):
             cor_cnt += 1
             r = top_1 - top_2 - N_3 - (majority > runner_up)
             if r < 0:
-                r = -1
+                r = -1  # correct but cannot certify anything
             else:
-                r = r // 2 // 2
+                if in_place:
+                    r = r // 2
+                else:
+                    r = r // 2 // 2
             radius.append(r)
             if r > 0:
                 auc += r
         else:
             r = top_1 - top_2 - N_3 - (majority > runner_up)
             if r < 0:
-                r = -2
+                r = -2  # wrong, but cannot certify anything
             else:
-                r = -3 - r // 2 // 2
+                # wrong, and can certify r, to see the real radius, use -r - 3
+                if in_place:
+                    r = -3 - r // 2
+                else:
+                    r = -3 - r // 2 // 2
             radius.append(r)
 
     if sort:
         radius.sort()
         mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
         print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
+        if at is not None:
+            cert_acc = np.sum(np.array(radius) >= at) * 100.0 / len(res)
+            cert_wrong = np.sum(-np.array(radius) - 3 >= at) * 100.0 / len(res)
+            print(f"Cert Acc@{at}: {cert_acc:.2f}")
+            print(f"Cert Wrong@{at}: {cert_wrong:.2f}")
+            print(f"Abstain@{at}: {100 - cert_acc - cert_wrong:.2f}")
     return radius
+
+
+def precompute_DPA_tau(res_, pred_and_conf, args, sort=True):
+    n_classes = res_.shape[1] - 2
+    for tau in np.linspace(0.1, 1, 10):
+        res = np.copy(res_)
+        res[:, :-1] = 0  # remove the prediction cnts
+        for i in range(args.N):
+            verified = pred_and_conf[i][1] <= tau
+            pred_cert = (pred_and_conf[i][0] * verified + (1 - verified) * n_classes).astype(np.int32)
+            res[np.arange(pred_cert.shape[0]), pred_cert] += 1
+        print("tau: %.2f\n" % tau)
+        print(res[:10])
+        precompute_DPA(res, args.in_place, at=args.poisoned_ins_num, sort=sort)
 
 
 def precompute_FPA(res, sort=True):
@@ -338,6 +365,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--load_dir", default=None, type=str,
                         help="dir for loading the aggregate results and commandline args")
+    parser.add_argument("--load_model_dir", default=None, type=str,
+                        help="dir for loading the model and predictions")
     parser.add_argument("--cache_filename", default=None, type=str,
                         help="name to cache the file", required=True)
     parser.add_argument("--confidence", default=0.999, type=float,
@@ -355,6 +384,9 @@ if __name__ == "__main__":
     parser.add_argument("--poisoned_ins_num_step", default=1, type=int,
                         help="the step of the poisoned instance number."
                         )
+    parser.add_argument("--poisoned_ins_num", default=None, type=int,
+                        help="the poisoned instance number."
+                        )
     parser.add_argument("--delta_non_tight", default=0, type=float,
                         help="the upper bound of probabilities that can induce incompleteness (non-tightness). "
                              "Setting to 0 means tight certification, setting to 1e-4 can greatly improve efficiency but "
@@ -368,6 +400,8 @@ if __name__ == "__main__":
                         )
     parser.add_argument("--draw_only", action='store_true', help="only to draw not precomputing the stats")
     parser.add_argument("--eval_noise", action='store_true', help="evaluate on noise prediction (backdoor attacks)")
+    parser.add_argument("--in_place", action='store_true',
+                        help="the backdoor attack is inplace replacement, so DPA only needs to divided by 2")
     parser.add_argument("--eval_class_only", default=None, type=int,
                         help="evaluate on this class only, None for all the classes. Useful in computing FP, TP, FN, TN "
                              "in binary classification"
@@ -398,10 +432,24 @@ if __name__ == "__main__":
         res, _ = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
     else:
         _, res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
+    pred_and_conf = []
+    if args.load_model_dir is not None:
+        for i in range(args.N):
+            a, b = np.load(os.path.join(args.load_model_dir, f"{i}_predictions.npy"))
+            pred_and_conf.append([a, b])
+
     if args.eval_partition is not None:
         res = res[eval(args.eval_partition)]
+        for i in range(args.N):
+            pred_and_conf[i][0] = pred_and_conf[i][0][eval(args.eval_partition)]
+            pred_and_conf[i][1] = pred_and_conf[i][1][eval(args.eval_partition)]
+
     if args.eval_class_only is not None:
-        res = res[res[:, -1] == args.eval_class_only]
+        idx = res[:, -1] == args.eval_class_only
+        res = res[idx]
+        for i in range(args.N):
+            pred_and_conf[i][0] = pred_and_conf[i][0][idx]
+            pred_and_conf[i][1] = pred_and_conf[i][1][idx]
 
     if args.dataset == "mnist17":
         args.D = 13007
@@ -447,7 +495,7 @@ if __name__ == "__main__":
                 args.d = 1
             else:
                 raise NotImplementedError
-    elif args.dataset == "cifar10":
+    elif args.dataset in ["cifar10", "cifar10-expand"]:
         args.D = 50000
         if args.noise_strategy is not None:
             if args.noise_strategy == "feature_flipping":
@@ -560,16 +608,22 @@ if __name__ == "__main__":
 
             # output(ret)
     elif args.select_strategy == "DPA":
-        if not args.draw_only:
-            np.save(cache_filename, precompute_DPA(res))
+        if args.patchguard:
+            if not args.draw_only:
+                np.save(cache_filename, precompute_DPA_tau(res, pred_and_conf, args))
+            else:
+                raise NotImplementedError
         else:
-            for poison_ins_num in poisoned_ins_num_range:
-                if poison_ins_num in cache:
-                    ret = cache[poison_ins_num]
-                else:
-                    ret = get_abstain_DPA(res, poison_ins_num)
-                    cache[poison_ins_num] = ret
-                    np.save(cache_filename, cache)
+            if not args.draw_only:
+                np.save(cache_filename, precompute_DPA(res, args.in_place))
+            else:
+                for poison_ins_num in poisoned_ins_num_range:
+                    if poison_ins_num in cache:
+                        ret = cache[poison_ins_num]
+                    else:
+                        ret = get_abstain_DPA(res, poison_ins_num)
+                        cache[poison_ins_num] = ret
+                        np.save(cache_filename, cache)
     elif args.select_strategy == "FPA":
         np.save(cache_filename, precompute_FPA(res))
     else:

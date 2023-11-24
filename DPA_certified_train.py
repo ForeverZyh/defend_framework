@@ -4,13 +4,18 @@ import json
 import time
 import tensorflow as tf
 import numpy as np
+import warnings
+import wandb
 
 from utils.data_processing import MNIST17DataPreprocessor, MNISTDataPreprocessor, IMDBDataPreprocessor, \
     EmberDataPreProcessor, EMBER_DATASET, EmberPoisonDataPreProcessor, MNIST01DataPreprocessor, \
-    MNIST17LimitedDataPreprocessor, FMNISTDataPreprocessor, CIFARDataPreprocessor
-from models import MNISTLiRPAModel, EmberLiRPAModel, EmberModel, MNISTModel, CIFAR10LiRPAModel, CIFAR10Model
+    MNIST17LimitedDataPreprocessor, FMNISTDataPreprocessor, CIFARDataPreprocessor, CIFAR02DataPreprocessor
+from models import MNISTLiRPAModel, EmberLiRPAModel, EmberModel, MNISTModel, CIFAR10LiRPAModel, CIFAR10Model, bagnet
 from utils.train_utils import train_many
 from utils.cert_train_argments import get_arguments, seed_everything
+
+# silence ResourceWarning
+warnings.filterwarnings("ignore", category=ResourceWarning)
 
 if __name__ == "__main__":
     parser = get_arguments()
@@ -57,6 +62,12 @@ if __name__ == "__main__":
             os.mkdir(os.path.join(args.res_save_dir, args.exp_name))
 
     assert args.res_save_dir is not None and args.exp_name is not None
+    with open(os.path.join(args.res_save_dir, args.exp_name, "commandline_args.txt"), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
+    if args.wandb:
+        args.wandb = wandb.init(project="poison_defense", name=args.exp_name, config=args.__dict__)
+    else:
+        args.wandb = None
     if args.dataset == "mnist":
         if args.load_poison_dir is not None:
             data_loader = MNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
@@ -90,10 +101,14 @@ if __name__ == "__main__":
                 model = EmberModel.EmberModel(data_loader.n_features, data_loader.n_classes, args.lr)
         else:
             model = EmberLiRPAModel.EmberModel(data_loader.n_features, data_loader.n_classes, args, device, lr=args.lr)
+    elif args.dataset == "cifar10-02":
+        assert args.patchguard
+        assert args.load_poison_dir is not None
+        data_loader = CIFAR02DataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
+        model = bagnet.BagNetModel(data_loader.n_features, data_loader.n_classes, lr=args.lr, device=device,
+                                   patch_size=round(args.eps), weight_decay=args.weight_decay,
+                                   x_test=data_loader.x_test, y_test=data_loader.y_test, wandb=args.wandb)
     else:
         raise NotImplementedError
-
-    with open(os.path.join(args.res_save_dir, args.exp_name, "commandline_args.txt"), 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
 
     aggregate_results = train_many(data_loader, model, args, res, res_noise)

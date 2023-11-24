@@ -11,9 +11,9 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
     test_size = data_loader.x_test.shape[0]
     if aggregate_result is None:
         aggregate_result = np.zeros([test_size, data_loader.n_classes + 1 + int(args.select_strategy == "DPA")],
-                                    dtype=np.int)
+                                    dtype=np.int32)
         aggregate_noise_result = np.zeros([test_size, data_loader.n_classes + 1 + int(args.select_strategy == "DPA")],
-                                          dtype=np.int)
+                                          dtype=np.int32)
     aggregate_result[np.arange(0, test_size), -1] = data_loader.y_test
     aggregate_noise_result[np.arange(0, test_size), -1] = data_loader.y_test
     # set the DPA partition id
@@ -70,7 +70,12 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
                 prediction_label = model.evaluate(X_test, y_test)
                 aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
         elif args.select_strategy == "DPA":
-            if args.no_lirpa:
+            if args.patchguard:
+                prediction_label, conf = model.evaluate(x_test, y_test)
+                aggregate_result[np.arange(0, test_size), prediction_label] += 1
+                aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
+                prediction_label = prediction_label, conf
+            elif args.no_lirpa:
                 prediction_label = model.evaluate(x_test, y_test)
                 aggregate_result[np.arange(0, test_size), prediction_label] += 1
                 aggregate_noise_result[np.arange(0, test_size), prediction_label] += 1
@@ -88,7 +93,8 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
             raise NotImplementedError
 
         if args.model_save_dir is not None:
-            model.save(args.model_save_dir, str(i), prediction_label if args.SABR else None)
+            model.save(args.model_save_dir, str(i),
+                       prediction_label if args.SABR or args.patchguard else None)
         model.init()
         if i % 100 == 0:
             np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"),
@@ -101,9 +107,5 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
 def train_single(data_loader, model, args):
     # train single classifier for attacking
     model.fit(data_loader.x_train, keras.utils.to_categorical(data_loader.y_train, data_loader.n_classes),
-              args.batch_size, args.epochs,
-              x_test=data_loader.x_test,
-              y_test=keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes),
-              wandb=args.wandb
-              )
+              args.batch_size, args.epochs)
     # model.save(args.model_save_dir)

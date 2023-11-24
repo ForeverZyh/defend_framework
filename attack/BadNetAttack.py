@@ -44,8 +44,8 @@ class BadNetAttackLabel(Attack):
             for i in range(self.data_processor.n_classes):
                 poses = [(x, y) for x in range(n) for y in range(n)]
                 poses.sort(key=lambda x: mean_features[i][x[0], x[1]])
-                selected_feature.append(np.array(poses[:len(poses) // 4]))
-                assert len(poses) // 4 >= self.poisoned_feat_num
+                selected_feature.append(np.array(poses[:len(poses) // 20]))
+                assert len(poses) // 20 >= self.poisoned_feat_num
         else:
             # selected poisoned_feat_num * poisoned_feat_num blocks that are < 0.5
             n = self.data_processor.x_train.shape[1]
@@ -57,11 +57,13 @@ class BadNetAttackLabel(Attack):
                         poses.append((x, y))
                 poses.sort(key=lambda x: mean_features[i][x[0]:x[0] + self.poisoned_feat_num,
                                          x[1]:x[1] + self.poisoned_feat_num].mean())
-                selected_feature.append(np.array(poses[:max(len(poses) // 4, 1)]))
-            pattern = np.zeros((self.poisoned_feat_num, self.poisoned_feat_num))
-            for i in range(self.poisoned_feat_num):
-                for j in range(self.poisoned_feat_num):
-                    pattern[i, j] = 1 if np.random.rand() < 0.5 else 0
+                selected_feature.append(np.array(poses[:max(len(poses) // 20, 1)]))
+            pattern = [np.zeros((self.poisoned_feat_num, self.poisoned_feat_num)) for _ in
+                       range(self.data_processor.n_classes)]
+            for k in range(self.data_processor.n_classes):
+                for i in range(self.poisoned_feat_num):
+                    for j in range(self.poisoned_feat_num):
+                        pattern[k][i, j] = 1 if np.random.rand() < 0.8 else 0
 
         self.valid_poison_ids = np.array([], dtype=np.int32)
         self.poisoned_feat_patterns = [None] * self.data_processor.n_classes
@@ -78,7 +80,7 @@ class BadNetAttackLabel(Attack):
                     for x in range(self.poisoned_feat_num):
                         for y in range(self.poisoned_feat_num):
                             self.poisoned_feat_patterns[i][x + selected_feat_for_i[0], y + selected_feat_for_i[1]] = \
-                                pattern[x, y]
+                                pattern[attack_targets[i]][x, y]
                             self.poisoned_feat_pos[i][x + selected_feat_for_i[0], y + selected_feat_for_i[1]] = 1
 
                 else:
@@ -94,6 +96,7 @@ class BadNetAttackLabel(Attack):
         if len(self.valid_poison_ids) < self.poisoned_ins_num:
             warnings.warn("The valid poisoning indices are less than the poisoned rate.")
             self.poisoned_ins_num = len(self.valid_poison_ids)
+        print(f"poisoned instances: {self.poisoned_ins_num}")
 
     def attack(self):
         indices = np.random.choice(self.valid_poison_ids, self.poisoned_ins_num, replace=False)

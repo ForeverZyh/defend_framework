@@ -10,7 +10,7 @@ import warnings
 import wandb
 
 from utils.data_processing import MNISTDataPreprocessor, MNIST17DataPreprocessor, MNIST01DataPreprocessor, \
-    CIFAR02DataPreprocessor, CIFARExpandedDataPreprocessor
+    CIFAR02DataPreprocessor
 from models.MNISTModel import MNISTModel, MNIST17Model, MNIST01Model
 from models.CIFAR10Model import CIFAR10Model
 from models.bagnet import BagNetModel
@@ -40,8 +40,7 @@ if __name__ == "__main__":
                         help="dir for save poisoned dataset"
                         )
     parser.add_argument("--load", action="store_true", help="whether to load the saved file")
-    parser.add_argument("--tau", default=0.5, type=float, help="the parameter tau in the defense")
-    parser.add_argument("--weight_decay", default=1e-2, type=float, help="weight decay for the training")
+    # parser.add_argument("--tau", default=0.5, type=float, help="the parameter tau in the defense")
 
     # Set random seeds
     args = parser.parse_args()
@@ -90,10 +89,10 @@ if __name__ == "__main__":
         Model_type = MNIST01Model
     elif args.dataset == "cifar10-02":
         DataPreprocessor_type = CIFAR02DataPreprocessor
-        Model_type = CIFAR10Model
-    elif args.dataset == "cifar10-expand":
-        DataPreprocessor_type = CIFARExpandedDataPreprocessor
-        Model_type = BagNetModel
+        if args.patchguard:
+            Model_type = BagNetModel
+        else:
+            Model_type = CIFAR10Model
     else:
         raise NotImplementedError
 
@@ -117,13 +116,18 @@ if __name__ == "__main__":
             attack = BadNetAttackNoLabel.load(os.path.join(filepath, "data"))
         data_loader = attack.data_processor
 
-    if args.dataset == "cifar10-expand":
+    if args.wandb:
+        args.wandb = wandb.init(project="poison_defense", name=args.exp_name, config=args.__dict__)
+    else:
+        args.wandb = None
+    if args.patchguard:
         model = Model_type(data_loader.n_features, data_loader.n_classes, lr=args.lr, device=device,
-                           patch_size=args.poisoned_feat_num, tau=args.tau, weight_decay=args.weight_decay)
+                           patch_size=args.poisoned_feat_num, weight_decay=args.weight_decay,
+                           x_test=data_loader.x_test, y_test=data_loader.y_test, wandb=args.wandb,
+                           pretrained=True)
     else:
         model = Model_type(data_loader.n_features, data_loader.n_classes)
 
-    args.wandb = wandb.init(project="poison_defense", name=args.exp_name, config=args.__dict__)
     train_single(data_loader, model, args)
     print("Clean Test Set:")
     res = model.evaluate(data_loader.x_test, keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
@@ -136,8 +140,10 @@ if __name__ == "__main__":
         if attack_targets[i] is None:
             print(f"class {i} is not poisoned:")
             model.evaluate(data_loader.x_test_poisoned[idx],
-                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes), tune=False)
+                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes),
+                           tune=False)
         else:
             print(f"class {i} is poisoned:")
             model.evaluate(data_loader.x_test_poisoned[idx],
-                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes), tune=False)
+                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes),
+                           tune=False)

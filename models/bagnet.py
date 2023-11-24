@@ -207,16 +207,26 @@ def bagnet9(pretrained=False, strides=[2, 2, 2, 1], **kwargs):
 
 
 class BagNetModel(Model):
-    def __init__(self, input_shape, n_classes, lr, device, patch_size, weight_decay, tau=0.5):
+    def __init__(self, input_shape, n_classes, lr, device, patch_size, weight_decay, x_test, y_test, wandb, tau=0.5,
+                 pretrained=False):
+        self.pretrained = pretrained
         super().__init__(input_shape, n_classes, lr)
         self.device = device
         self.tau = tau
         self.patch_size = patch_size
         self.rf_size = 9
         self.weight_decay = weight_decay
+        self.x_test = x_test
+        self.y_test = y_test
+        self.wandb = wandb
 
     def build_model(self):
-        return bagnet9(pretrained=False, clip_range=None, aggregation='mean', num_classes=self.n_classes)
+        if self.pretrained:
+            model = bagnet9(pretrained=True, clip_range=None, aggregation='mean')
+            model.fc = nn.Linear(model.fc.in_features, self.n_classes)
+            return model
+        else:
+            return bagnet9(pretrained=False, clip_range=None, aggregation='mean', num_classes=self.n_classes)
 
     def save(self, save_path, file_name="0", predictions=None):
         torch.save(self.model.state_dict(), os.path.join(save_path, file_name))
@@ -231,7 +241,7 @@ class BagNetModel(Model):
         data = transforms.RandomRotation(10)(data)
         return data
 
-    def fit(self, X, y, batch_size, epochs, x_test=None, y_test=None, wandb=None):
+    def fit(self, X, y, batch_size, epochs):
         X = np.transpose(X, (0, 3, 1, 2))
         self.mean = np.expand_dims(np.mean(X, axis=(0, 2, 3), dtype='float64'), axis=(1, 2))
         self.std = np.expand_dims(np.std(X, axis=(0, 2, 3), dtype='float64'), axis=(1, 2))
@@ -240,11 +250,11 @@ class BagNetModel(Model):
         data = TensorDataset(torch.Tensor(X), torch.Tensor(y).long().max(dim=-1)[1])
         loader = DataLoader(data, batch_size=batch_size, shuffle=True, pin_memory=True)
 
-        if x_test is not None:
-            x_test = np.transpose(x_test, (0, 3, 1, 2))
+        if self.x_test is not None:
+            x_test = np.transpose(self.x_test, (0, 3, 1, 2))
             x_test = (x_test - self.mean) / self.std
             data = TensorDataset(torch.Tensor(x_test),
-                                 torch.Tensor(y_test).long().max(dim=-1)[1])
+                                 torch.Tensor(self.y_test).long())
             batch_size = 256
             testloader = DataLoader(data, batch_size=batch_size, shuffle=False, pin_memory=True)
         else:
@@ -274,31 +284,33 @@ class BagNetModel(Model):
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
 
-            print(f"Train Accuracy: {round(100. * correct / total, 2)}, "
-                  f"Loss: {round(train_loss / len(loader), 4)} at epoch {epoch}")
-            wandb_log["train_loss"] = train_loss / len(loader)
-            wandb_log["train_acc"] = 100. * correct / total
-            if testloader is not None:
-                self.model.eval()
-                correct = 0
-                total = 0
-                test_loss = 0
-                for batch_idx, (inputs, targets) in enumerate(testloader):
-                    inputs, targets = inputs.to(self.device), targets.to(self.device)
-                    outputs = self.model(inputs, y=targets)
-                    loss = criterion(outputs, targets)
-                    test_loss += loss.item()
-                    _, predicted = outputs.max(1)
-                    total += targets.size(0)
-                    correct += predicted.eq(targets).sum().item()
+            if (epoch + 1) % 100 == 0:
+                print(f"Train Accuracy: {round(100. * correct / total, 2)}, "
+                      f"Loss: {round(train_loss / len(loader), 4)} at epoch {epoch}")
+                wandb_log["train_loss"] = train_loss / len(loader)
+                wandb_log["train_acc"] = 100. * correct / total
+            if (epoch + 1) % 100 == 0:
+                if testloader is not None:
+                    self.model.eval()
+                    correct = 0
+                    total = 0
+                    test_loss = 0
+                    for batch_idx, (inputs, targets) in enumerate(testloader):
+                        inputs, targets = inputs.to(self.device), targets.to(self.device)
+                        outputs = self.model(inputs, y=targets)
+                        loss = criterion(outputs, targets)
+                        test_loss += loss.item()
+                        _, predicted = outputs.max(1)
+                        total += targets.size(0)
+                        correct += predicted.eq(targets).sum().item()
 
-                print(f"Test Accuracy: {round(100. * correct / total, 2)}, "
-                      f"Loss: {round(test_loss / len(testloader), 4)} at epoch {epoch}")
-                wandb_log["test_loss"] = test_loss / len(testloader)
-                wandb_log["test_acc"] = 100. * correct / total
+                    print(f"Test Accuracy: {round(100. * correct / total, 2)}, "
+                          f"Loss: {round(test_loss / len(testloader), 4)} at epoch {epoch}")
+                    wandb_log["test_loss"] = test_loss / len(testloader)
+                    wandb_log["test_acc"] = 100. * correct / total
 
-            if wandb is not None:
-                wandb.log(wandb_log, commit=True)
+            if self.wandb is not None:
+                self.wandb.log(wandb_log, commit=True)
 
     def evaluate(self, x_test, y_test, tune=True):
         x_test = np.transpose(x_test, (0, 3, 1, 2))
@@ -346,12 +358,12 @@ class BagNetModel(Model):
         predictions = np.array(result_list)
         # verified = np.array(verified)
         confs = np.array(confs)
+        print("Test accuracy: ", np.mean(predictions == np.argmax(y_test, axis=-1)))
         if tune:
             self.verify(predictions, confs, y_test)
         return predictions, confs
 
     def verify(self, predictions, confs, y_test):
-        print("Test accuracy: ", np.mean(predictions == np.argmax(y_test, axis=-1)))
         for tau in np.linspace(0.1, 1, 10):
             print("Tau: ", tau)
             verified = confs <= tau
