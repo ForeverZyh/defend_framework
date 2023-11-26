@@ -8,33 +8,49 @@ from models.Model import Model
 
 
 class MNISTModel(Model):
-    def __init__(self, n_features, n_classes, lr=1e-3):
+    def __init__(self, n_features, n_classes, lr=1e-3, weight_decay=1e-2):
+        self.weight_decay = weight_decay
         super(MNISTModel, self).__init__(n_features, n_classes, lr)
 
-    def build_model(self):
-        def scheduler(epoch, lr):
-            if epoch > 0 and epoch % 100 == 0:
-                lr *= 0.5
-            # print(lr)
-            return lr
+    # def build_model(self):
+    #     def scheduler(epoch, lr):
+    #         if epoch > 0 and epoch % 100 == 0:
+    #             lr *= 0.5
+    #         # print(lr)
+    #         return lr
+    #
+    #     reg = l2(1e-3)
+    #     model = Sequential()
+    #     model.add(Conv2D(16, kernel_size=(5, 5),
+    #                      activation='relu',
+    #                      input_shape=self.input_shape))
+    #     model.add(AveragePooling2D(pool_size=(2, 2)))
+    #     model.add(Conv2D(32, (5, 5), activation='relu'))
+    #     model.add(AveragePooling2D(pool_size=(2, 2)))
+    #     model.add(Flatten())
+    #     model.add(Dropout(0.25))
+    #     model.add(Dense(32, activation='relu', kernel_regularizer=reg, bias_regularizer=reg))
+    #     model.add(Dropout(0.25))
+    #     model.add(Dense(512, activation='relu', kernel_regularizer=reg, bias_regularizer=reg))
+    #     model.add(Dense(self.n_classes, activation='softmax'))
+    #
+    #     model.compile(loss=keras.losses.categorical_crossentropy,
+    #                   optimizer=keras.optimizers.Adam(lr=self.lr),
+    #                   metrics=['accuracy'])
+    #     # self.callback = [keras.callbacks.LearningRateScheduler(scheduler)]
+    #     return model
 
-        reg = l2(1e-3)
+    def build_model(self):
         model = Sequential()
-        model.add(Conv2D(16, kernel_size=(5, 5),
-                         activation='relu',
-                         input_shape=self.input_shape))
-        model.add(AveragePooling2D(pool_size=(2, 2)))
-        model.add(Conv2D(32, (5, 5), activation='relu'))
-        model.add(AveragePooling2D(pool_size=(2, 2)))
         model.add(Flatten())
-        model.add(Dropout(0.25))
-        model.add(Dense(32, activation='relu', kernel_regularizer=reg, bias_regularizer=reg))
-        model.add(Dropout(0.25))
-        model.add(Dense(512, activation='relu', kernel_regularizer=reg, bias_regularizer=reg))
+        model.add(Dense(256, activation='relu'))
+        model.add(Dropout(0.5))
+        model.add(Dense(128, activation='relu'))
+        model.add(Dropout(0.5))
         model.add(Dense(self.n_classes, activation='softmax'))
 
         model.compile(loss=keras.losses.categorical_crossentropy,
-                      optimizer=keras.optimizers.Adam(lr=self.lr),
+                      optimizer=keras.optimizers.AdamW(learning_rate=self.lr, weight_decay=self.weight_decay),
                       metrics=['accuracy'])
         # self.callback = [keras.callbacks.LearningRateScheduler(scheduler)]
         return model

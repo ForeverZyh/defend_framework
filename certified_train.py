@@ -1,4 +1,4 @@
-import random
+import torch
 import os
 import json
 import time
@@ -20,6 +20,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     seed_everything(args.seed)
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
+    assert args.epochs % args.stack_epochs == 0
+    args.epochs = args.epochs // args.stack_epochs
 
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
@@ -87,7 +89,8 @@ if __name__ == "__main__":
             data_loader = MNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = MNISTDataPreprocessor(args)
-        model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes, lr=args.lr)
+        model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes, lr=args.lr,
+                                      weight_decay=args.weight_decay)
     elif args.dataset == "fmnist":
         if args.load_poison_dir is not None:
             data_loader = FMNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
@@ -99,7 +102,8 @@ if __name__ == "__main__":
             data_loader = CIFARDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = CIFARDataPreprocessor(args)
-        model = CIFAR10Model.CIFAR10Model(data_loader.n_features, data_loader.n_classes, lr=args.lr)
+        model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes, lr=args.lr,
+                                      weight_decay=args.weight_decay)
     elif args.dataset == "cifar10-02":
         if args.load_poison_dir is not None:
             data_loader = CIFAR02DataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)

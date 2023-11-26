@@ -24,6 +24,7 @@ def get_arguments():
                         help="dataset type", required=True)
     parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument("--epochs", type=int, default=200, help="training epochs")
+    parser.add_argument("--stack_epochs", type=int, default=1, help="stack how many epochs into one epoch")
     parser.add_argument("--batch_size", type=int, default=16, help="batch size")
     parser.add_argument("--lr", type=float, default=1e-3, help="learning rate")
     parser.add_argument("--weight_decay", default=1e-2, type=float, help="weight decay for the training")

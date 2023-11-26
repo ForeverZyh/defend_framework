@@ -35,8 +35,8 @@ class Model(ABC):
 
     def evaluate(self, x_test, y_test):
         score = self.model.evaluate(x_test, y_test, verbose=0, batch_size=512)
-        print('Test loss:', score[0])
-        print('Test accuracy:', score[1])
+        print('Test loss:', round(score[0], 4))
+        print('Test accuracy:', round(score[1] * 100, 2))
 
         prediction_label = np.argmax(self.model.predict(x_test), axis=1)
         return prediction_label

@@ -195,9 +195,9 @@ def precompute_DPA(res, in_place, at=None, sort=True):
         if at is not None:
             cert_acc = np.sum(np.array(radius) >= at) * 100.0 / len(res)
             cert_wrong = np.sum(-np.array(radius) - 3 >= at) * 100.0 / len(res)
-            print(f"Cert Acc@{at}: {cert_acc:.2f}")
-            print(f"Cert Wrong@{at}: {cert_wrong:.2f}")
-            print(f"Abstain@{at}: {100 - cert_acc - cert_wrong:.2f}")
+            print(f"Cert Acc@{at}: {round(cert_acc, 2)}")
+            print(f"Cert Wrong@{at}: {round(cert_wrong, 2)}")
+            print(f"Abstain@{at}: {round(100 - cert_acc - cert_wrong, 2)}")
     return radius
 
 
@@ -414,6 +414,8 @@ if __name__ == "__main__":
         conf = args.confidence  # override the confidence
         args.__dict__.update(json.load(f))
         args.confidence = conf
+        if "patchguard" not in args.__dict__:
+            args.patchguard = False
     if args.parallel_precompute is not None:
         assert args.parallel_precompute_id is not None and 0 <= args.parallel_precompute_id < args.parallel_precompute
     poisoned_ins_num_range = range(args.poisoned_ins_num_st, args.poisoned_ins_num_en + 1, args.poisoned_ins_num_step)
@@ -440,14 +442,14 @@ if __name__ == "__main__":
 
     if args.eval_partition is not None:
         res = res[eval(args.eval_partition)]
-        for i in range(args.N):
+        for i in range(len(pred_and_conf)):
             pred_and_conf[i][0] = pred_and_conf[i][0][eval(args.eval_partition)]
             pred_and_conf[i][1] = pred_and_conf[i][1][eval(args.eval_partition)]
 
     if args.eval_class_only is not None:
         idx = res[:, -1] == args.eval_class_only
         res = res[idx]
-        for i in range(args.N):
+        for i in range(len(pred_and_conf)):
             pred_and_conf[i][0] = pred_and_conf[i][0][idx]
             pred_and_conf[i][1] = pred_and_conf[i][1][idx]
 
@@ -615,7 +617,7 @@ if __name__ == "__main__":
                 raise NotImplementedError
         else:
             if not args.draw_only:
-                np.save(cache_filename, precompute_DPA(res, args.in_place))
+                np.save(cache_filename, precompute_DPA(res, args.in_place, at=args.poisoned_ins_num))
             else:
                 for poison_ins_num in poisoned_ins_num_range:
                     if poison_ins_num in cache:
