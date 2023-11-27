@@ -78,10 +78,10 @@ class Bottleneck(nn.Module):
 class BagNet(nn.Module):
 
     def __init__(self, block, layers, strides=[1, 2, 2, 2], kernel3=[0, 0, 0, 0], num_classes=1000, clip_range=None,
-                 aggregation='mean'):
+                 aggregation='mean', in_channels=3):
         self.inplanes = 64
         super(BagNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=1, stride=1, padding=0,
+        self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=1, stride=1, padding=0,
                                bias=False)
         self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0,
                                bias=False)
@@ -219,14 +219,19 @@ class BagNetModel(Model):
         self.x_test = x_test
         self.y_test = y_test
         self.wandb = wandb
+        self.test_res = {}
 
     def build_model(self):
         if self.pretrained:
             model = bagnet9(pretrained=True, clip_range=None, aggregation='mean')
             model.fc = nn.Linear(model.fc.in_features, self.n_classes)
+            if self.input_shape[-1] == 1:
+                model.conv1 = nn.Conv2d(1, 64, kernel_size=1, stride=1, padding=0,
+                               bias=False)
             return model
         else:
-            return bagnet9(pretrained=False, clip_range=None, aggregation='mean', num_classes=self.n_classes)
+            return bagnet9(pretrained=False, clip_range=None, aggregation='mean', num_classes=self.n_classes,
+                           in_channels=self.input_shape[-1])
 
     def save(self, save_path, file_name="0", predictions=None):
         torch.save(self.model.state_dict(), os.path.join(save_path, file_name))
@@ -237,7 +242,7 @@ class BagNetModel(Model):
         self.model.load_state_dict(torch.load(os.path.join(save_path, file_name)))
 
     def data_aug(self, data, **kwargs):
-        data = transforms.RandomCrop(32, 3)(data)
+        data = transforms.RandomCrop(data.shape[-1], 3)(data)
         data = transforms.RandomRotation(10)(data)
         return data
 
@@ -284,33 +289,39 @@ class BagNetModel(Model):
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
 
-            if (epoch + 1) % 100 == 0:
-                print(f"Train Accuracy: {round(100. * correct / total, 2)}, "
-                      f"Loss: {round(train_loss / len(loader), 4)} at epoch {epoch}")
-                wandb_log["train_loss"] = train_loss / len(loader)
-                wandb_log["train_acc"] = 100. * correct / total
-            if (epoch + 1) % 100 == 0:
-                if testloader is not None:
-                    self.model.eval()
-                    correct = 0
-                    total = 0
-                    test_loss = 0
-                    for batch_idx, (inputs, targets) in enumerate(testloader):
-                        inputs, targets = inputs.to(self.device), targets.to(self.device)
-                        outputs = self.model(inputs, y=targets)
-                        loss = criterion(outputs, targets)
-                        test_loss += loss.item()
-                        _, predicted = outputs.max(1)
-                        total += targets.size(0)
-                        correct += predicted.eq(targets).sum().item()
-
-                    print(f"Test Accuracy: {round(100. * correct / total, 2)}, "
-                          f"Loss: {round(test_loss / len(testloader), 4)} at epoch {epoch}")
-                    wandb_log["test_loss"] = test_loss / len(testloader)
-                    wandb_log["test_acc"] = 100. * correct / total
+            # if (epoch + 1) % 1 == 0:
+            #     print(f"Train Accuracy: {round(100. * correct / total, 2)}, "
+            #           f"Loss: {round(train_loss / len(loader), 4)} at epoch {epoch}")
+            #     wandb_log["train_loss"] = train_loss / len(loader)
+            #     wandb_log["train_acc"] = 100. * correct / total
+            # if (epoch + 1) % 1 == 0:
+            #     if testloader is not None:
+            #         self.model.eval()
+            #         correct = 0
+            #         total = 0
+            #         test_loss = 0
+            #         for batch_idx, (inputs, targets) in enumerate(testloader):
+            #             inputs, targets = inputs.to(self.device), targets.to(self.device)
+            #             outputs = self.model(inputs, y=targets)
+            #             loss = criterion(outputs, targets)
+            #             test_loss += loss.item()
+            #             _, predicted = outputs.max(1)
+            #             total += targets.size(0)
+            #             correct += predicted.eq(targets).sum().item()
+            #
+            #         print(f"Test Accuracy: {round(100. * correct / total, 2)}, "
+            #               f"Loss: {round(test_loss / len(testloader), 4)} at epoch {epoch}")
+            #         wandb_log["test_loss"] = test_loss / len(testloader)
+            #         wandb_log["test_acc"] = 100. * correct / total
+            #         if epoch not in self.test_res:
+            #             self.test_res[epoch] = []
+            #         self.test_res[epoch].append(round(100. * correct / total, 2))
 
             if self.wandb is not None:
                 self.wandb.log(wandb_log, commit=True)
+
+        # for epoch in sorted(self.test_res.keys()):
+        #     print(epoch, np.mean(self.test_res[epoch]))
 
     def evaluate(self, x_test, y_test, tune=True):
         x_test = np.transpose(x_test, (0, 3, 1, 2))

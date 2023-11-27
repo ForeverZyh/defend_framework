@@ -23,6 +23,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     seed_everything(args.seed)
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
+    assert args.epochs % args.stack_epochs == 0
+    args.epochs = args.epochs // args.stack_epochs
 
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
@@ -73,7 +75,12 @@ if __name__ == "__main__":
             data_loader = MNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = MNISTDataPreprocessor(args)
-        if args.no_lirpa:
+        if args.patchguard:
+            model = bagnet.BagNetModel(data_loader.n_features, data_loader.n_classes, lr=args.lr, device=device,
+                                       patch_size=round(args.eps), weight_decay=args.weight_decay,
+                                       x_test=data_loader.x_test, y_test=data_loader.y_test, wandb=args.wandb,
+                                       pretrained=True)
+        elif args.no_lirpa:
             # use the same architecture as the LiRPAModel
             model = MNISTModel.MNIST17Model(data_loader.n_features, data_loader.n_classes, args.lr)
         else:
@@ -107,7 +114,8 @@ if __name__ == "__main__":
         data_loader = CIFAR02DataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         model = bagnet.BagNetModel(data_loader.n_features, data_loader.n_classes, lr=args.lr, device=device,
                                    patch_size=round(args.eps), weight_decay=args.weight_decay,
-                                   x_test=data_loader.x_test, y_test=data_loader.y_test, wandb=args.wandb)
+                                   x_test=data_loader.x_test, y_test=data_loader.y_test, wandb=args.wandb,
+                                   pretrained=True)
     else:
         raise NotImplementedError
 

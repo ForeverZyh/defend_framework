@@ -80,7 +80,10 @@ if __name__ == "__main__":
 
     if args.dataset == "mnist":
         DataPreprocessor_type = MNISTDataPreprocessor
-        Model_type = MNISTModel
+        if args.patchguard:
+            Model_type = BagNetModel
+        else:
+            Model_type = MNISTModel
     elif args.dataset == "mnist17":
         DataPreprocessor_type = MNIST17DataPreprocessor
         Model_type = MNIST17Model

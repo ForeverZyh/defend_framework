@@ -2,6 +2,7 @@ import numpy as np
 from tensorflow import keras
 from tqdm import trange
 import os
+import gc
 
 from utils.dataaug import DataGeneratorForMNIST, MNISTDataGenerator, EmberDataGenerator, CIFARDataGenerator
 from utils import EMBER_DATASET, IMAGE_DATASET
@@ -18,12 +19,14 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
     aggregate_noise_result[np.arange(0, test_size), -1] = data_loader.y_test
     # set the DPA partition id
     data_loader.data_processor.DPA_partition_cnt = np.sum(aggregate_result[0, :-1])
-    datagen = None
     for i in trange(np.sum(aggregate_result[0, :-1]), args.N):
+        datagen = None
         key_dict = {0: 0, 1: 1, 2: 2}  # used for imdb dataset to get word idx
         X, y = data_loader.data_processor.process_train(key_dict)
         # using the last index for the ground truth label
         y = keras.utils.to_categorical(y, data_loader.n_classes)
+        X = np.repeat(X, args.stack_epochs, axis=0)
+        y = np.repeat(y, args.stack_epochs, axis=0)
         if args.data_aug:
             if args.dataset in IMAGE_DATASET:
                 if args.dataset == "cifar10":
@@ -54,7 +57,7 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
         if datagen is not None:
             model.fit_generator(datagen, args.epochs)
         else:
-            model.fit(X, y, args.batch_size, args.epochs)
+            model.fit(X, y, args.batch_size, args.epochs, data_loader.data_processor.process_test(x_test, args.fix_noise), y_test)
 
         if args.select_strategy not in ["DPA", "FPA"]:
             if args.dataset in EMBER_DATASET and args.noise_strategy is None:
@@ -96,9 +99,10 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
             model.save(args.model_save_dir, str(i),
                        prediction_label if args.SABR or args.patchguard else None)
         model.init()
-        if i % 100 == 0:
+        if i % 50 == 0:
             np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"),
                     (aggregate_result, aggregate_noise_result))
+        gc.collect()
 
     np.save(os.path.join(args.res_save_dir, args.exp_name, "aggre_res"), (aggregate_result, aggregate_noise_result))
     print(aggregate_result, aggregate_noise_result)

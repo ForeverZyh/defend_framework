@@ -34,6 +34,7 @@ if __name__ == "__main__":
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     # random.seed(args.seed)
     # np.random.seed(args.seed)
@@ -59,6 +60,7 @@ if __name__ == "__main__":
             if respond == "O":
                 pass
             elif respond == "R":
+                print("Remember to reset the random seed, current seed: ", args.seed)
                 res, res_noise = np.load(os.path.join(args.res_save_dir, args.exp_name, "aggre_res.npy"))
             else:
                 exit(0)
@@ -89,8 +91,9 @@ if __name__ == "__main__":
             data_loader = MNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = MNISTDataPreprocessor(args)
-        model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes, lr=args.lr,
-                                      weight_decay=args.weight_decay)
+        model = MNISTModel.MNISTTorchModel(data_loader.n_features, data_loader.n_classes, lr=args.lr,
+                                           weight_decay=args.weight_decay, device=device,
+                                           data_processor=data_loader.data_processor)
     elif args.dataset == "fmnist":
         if args.load_poison_dir is not None:
             data_loader = FMNISTDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
@@ -102,8 +105,10 @@ if __name__ == "__main__":
             data_loader = CIFARDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
         else:
             data_loader = CIFARDataPreprocessor(args)
-        model = MNISTModel.MNISTModel(data_loader.n_features, data_loader.n_classes, lr=args.lr,
-                                      weight_decay=args.weight_decay)
+        assert not args.data_aug
+        model = MNISTModel.MNISTTorchModel(data_loader.n_features, data_loader.n_classes, lr=args.lr,
+                                           weight_decay=args.weight_decay, device=device,
+                                           data_processor=data_loader.data_processor)
     elif args.dataset == "cifar10-02":
         if args.load_poison_dir is not None:
             data_loader = CIFAR02DataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)

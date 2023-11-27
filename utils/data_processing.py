@@ -103,8 +103,14 @@ class DataProcessor:
             alpha = self.alpha
         if shape is None:
             shape = ret_X.shape
-        mask = np.random.random(shape) < alpha
-        delta = np.random.randint(1, self.K + 1, shape) / self.K
+        if isinstance(ret_X, torch.Tensor):
+            mask = (torch.rand(shape) < alpha).long()
+            delta = torch.randint(1, self.K + 1, shape) / self.K
+            mask = mask.to(ret_X.device)
+            delta = delta.to(ret_X.device)
+        else:
+            mask = np.random.random(shape) < alpha
+            delta = np.random.randint(1, self.K + 1, shape) / self.K
         ret_X = ret_X + (1 - mask) * delta
         ret_X[ret_X > 1 + 1e-4] -= (1 + self.K) / self.K
         return ret_X
