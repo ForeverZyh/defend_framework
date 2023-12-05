@@ -10,8 +10,8 @@ from models.LiRPAModel import LiRPAModel
 
 
 class MNISTModel(LiRPAModel):
-    def __init__(self, n_features, n_classes, args, device, lr=1e-3):
-        super(MNISTModel, self).__init__(n_features, n_classes, args, device, eval(args.model), lr)
+    def __init__(self, n_features, n_classes, args, device, lr=1e-3, weight_decay=1e-2):
+        super(MNISTModel, self).__init__(n_features, n_classes, args, device, eval(args.model), lr, weight_decay)
 
     def data_aug(self, data, **kwargs):
         data = transforms.RandomCrop(28, 3)(data)

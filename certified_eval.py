@@ -150,7 +150,7 @@ def get_pa_pb(top_1, top_2, bags, alpha, n_classes):
     return p_a, p_b
 
 
-def precompute_DPA(res, in_place, at=None, sort=True):
+def precompute_DPA(res, in_place, at=None, sort=True, ret_dict=None, print_out=True):
     # res.shape: (n_examples, n_classes + 2)
     radius = []
     cor_cnt = 0
@@ -191,28 +191,37 @@ def precompute_DPA(res, in_place, at=None, sort=True):
     if sort:
         radius.sort()
         mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
-        print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
+        if print_out:
+            print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
         if at is not None:
             cert_acc = np.sum(np.array(radius) >= at) * 100.0 / len(res)
             cert_wrong = np.sum(-np.array(radius) - 3 >= at) * 100.0 / len(res)
-            print(f"Cert Acc@{at}: {round(cert_acc, 2)}")
-            print(f"Cert Wrong@{at}: {round(cert_wrong, 2)}")
-            print(f"Abstain@{at}: {round(100 - cert_acc - cert_wrong, 2)}")
+            abstain = 100 - cert_acc - cert_wrong
+            if ret_dict is not None:
+                ret_dict["res"] = (cert_acc, cert_wrong, abstain)
+            if print_out:
+                print(f"Cert Acc@{at}: {round(cert_acc, 2)}")
+                print(f"Cert Wrong@{at}: {round(cert_wrong, 2)}")
+                print(f"Abstain@{at}: {round(abstain, 2)}")
     return radius
 
 
 def precompute_DPA_tau(res_, pred_and_conf, args, sort=True):
     n_classes = res_.shape[1] - 2
-    for tau in np.linspace(0.1, 1, 10):
-        res = np.copy(res_)
+    ret = {}
+    res = np.copy(res_)
+    for tau in np.linspace(0, 1, 101):
         res[:, :-1] = 0  # remove the prediction cnts
         for i in range(args.N):
             verified = pred_and_conf[i][1] <= tau
             pred_cert = (pred_and_conf[i][0] * verified + (1 - verified) * n_classes).astype(np.int32)
             res[np.arange(pred_cert.shape[0]), pred_cert] += 1
-        print("tau: %.2f\n" % tau)
-        print(res[:10])
-        precompute_DPA(res, args.in_place, at=args.poisoned_ins_num, sort=sort)
+        # print("tau: %.2f\n" % tau)
+        # print(res[:10])
+        aux_dict = {}
+        precompute_DPA(res, args.in_place, at=args.poisoned_ins_num, sort=sort, ret_dict=aux_dict, print_out=False)
+        ret[tau] = aux_dict["res"]
+    return ret
 
 
 def precompute_FPA(res, sort=True):

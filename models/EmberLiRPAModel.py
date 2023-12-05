@@ -10,8 +10,8 @@ from models.LiRPAModel import LiRPAModel
 
 
 class EmberModel(LiRPAModel):
-    def __init__(self, n_features, n_classes, args, device, lr=1e-3):
-        super(EmberModel, self).__init__([1, 1, n_features], n_classes, args, device, mlp_4layer, lr)
+    def __init__(self, n_features, n_classes, args, device, lr=1e-3, weight_decay=1e-2):
+        super(EmberModel, self).__init__([1, 1, n_features], n_classes, args, device, mlp_4layer, lr, weight_decay)
 
     def data_aug(self, data, **kwargs):
         data += torch.clamp(torch.normal(torch.zeros_like(data), torch.ones_like(data) * 0.1), min=0, max=1)

@@ -12,16 +12,18 @@ from auto_LiRPA.utils import MultiAverageMeter
 
 
 class LiRPAModel(ABC):
-    def __init__(self, n_features, n_classes, args, device, model_ori, lr=1e-3):
+    def __init__(self, n_features, n_classes, args, device, model_ori, lr=1e-3, weight_decay=1e-2):
         self.input_shape = n_features
         self.n_classes = n_classes
         self.lr = lr
+        self.weight_decay = weight_decay
         self.args = args
         self.device = device
         self.init_model = model_ori
         self.init()
         self.train_time = 0
         self.test_time = 0
+        self.tune_res = []
 
     def adv_attack(self, data, target, eps: float):
         data = self.data_aug(data)
@@ -77,6 +79,7 @@ class LiRPAModel(ABC):
         eps_scheduler = eval(self.args.scheduler_name)(self.args.eps * self.args.eps_train_ratio,
                                                        self.args.scheduler_opts)
         opt = optim.Adam(self.model.parameters(), lr=self.lr)
+        # opt = optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         lr_scheduler = optim.lr_scheduler.StepLR(opt, step_size=10, gamma=0.5)
 
         for t in range(1, epochs + 1):
@@ -100,10 +103,13 @@ class LiRPAModel(ABC):
             print("Test accuracy: ", np.mean(predictions == np.argmax(y_test, axis=-1)))
             predictions_cert = predictions * verified + (1 - verified) * self.n_classes
             print("Certified accuracy: ", np.mean(predictions_cert == np.argmax(y_test, axis=-1)))
-            print("Approximate bd accuracy: ", np.mean(predictions_cert == np.argmax(y_test, axis=-1)) - np.mean(
-                (predictions_cert != np.argmax(y_test, axis=-1)) * verified) / (self.n_classes - 1))
+            inter_res = np.mean(predictions_cert == np.argmax(y_test, axis=-1)) - np.mean(
+                (predictions_cert != np.argmax(y_test, axis=-1)) * verified) / (self.n_classes - 1)
+            self.tune_res.append(inter_res)
+            print("Approximate bd accuracy: ", inter_res)
             print("Train time: ", self.train_time)
             print("Test time: ", self.test_time)
+            print("Tune res averaged: ", np.mean(self.tune_res))
             return predictions, predictions_cert
 
     def test(self, eps_scheduler, loader):

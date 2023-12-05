@@ -57,7 +57,7 @@ def train_many(data_loader, model, args, aggregate_result, aggregate_noise_resul
         if datagen is not None:
             model.fit_generator(datagen, args.epochs)
         else:
-            model.fit(X, y, args.batch_size, args.epochs, data_loader.data_processor.process_test(x_test, args.fix_noise), y_test)
+            model.fit(X, y, args.batch_size, args.epochs) # , data_loader.data_processor.process_test(x_test, args.fix_noise), y_test)
 
         if args.select_strategy not in ["DPA", "FPA"]:
             if args.dataset in EMBER_DATASET and args.noise_strategy is None:

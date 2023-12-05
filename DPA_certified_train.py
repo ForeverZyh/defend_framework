@@ -84,7 +84,8 @@ if __name__ == "__main__":
             # use the same architecture as the LiRPAModel
             model = MNISTModel.MNIST17Model(data_loader.n_features, data_loader.n_classes, args.lr)
         else:
-            model = MNISTLiRPAModel.MNISTModel(data_loader.n_features, data_loader.n_classes, args, device, lr=args.lr)
+            model = MNISTLiRPAModel.MNISTModel(data_loader.n_features, data_loader.n_classes, args, device,
+                                               lr=args.lr, weight_decay=args.weight_decay)
     elif args.dataset == "cifar10":
         if args.load_poison_dir is not None:
             data_loader = CIFARDataPreprocessor.load(os.path.join(args.load_poison_dir, "data"), args)
@@ -95,7 +96,7 @@ if __name__ == "__main__":
             model = CIFAR10Model.CIFAR10Model(data_loader.n_features, data_loader.n_classes, args.lr)
         else:
             model = CIFAR10LiRPAModel.CIFAR10Model(data_loader.n_features, data_loader.n_classes, args, device,
-                                                   lr=args.lr)
+                                                   lr=args.lr, weight_decay=args.weight_decay)
     elif args.dataset == "ember":
         if args.load_poison_dir is not None:
             data_loader = EmberPoisonDataPreProcessor(args)
@@ -107,7 +108,8 @@ if __name__ == "__main__":
             else:
                 model = EmberModel.EmberModel(data_loader.n_features, data_loader.n_classes, args.lr)
         else:
-            model = EmberLiRPAModel.EmberModel(data_loader.n_features, data_loader.n_classes, args, device, lr=args.lr)
+            model = EmberLiRPAModel.EmberModel(data_loader.n_features, data_loader.n_classes, args, device, lr=args.lr,
+                                               weight_decay=args.weight_decay)
     elif args.dataset == "cifar10-02":
         assert args.patchguard
         assert args.load_poison_dir is not None

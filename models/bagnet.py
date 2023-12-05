@@ -206,6 +206,26 @@ def bagnet9(pretrained=False, strides=[2, 2, 2, 1], **kwargs):
     return model
 
 
+def bagnet5(pretrained=False, strides=[2, 2, 1, 1], **kwargs):
+    if not pretrained:
+        return BagNet(Bottleneck, [3, 4, 6, 3], strides=strides, kernel3=[1, 0, 0, 0], **kwargs)
+    else:
+        model = BagNet(Bottleneck, [3, 4, 6, 3], strides=strides, kernel3=[1, 0, 0, 0], **kwargs)
+        model_1 = bagnet9(pretrained=True, clip_range=None, aggregation='mean')
+        if kwargs["in_channels"] == 1:
+            model.conv1 = nn.Conv2d(1, 64, kernel_size=1, stride=1, padding=0,
+                                    bias=False)
+        else:
+            model.conv1 = model_1.conv1
+        model.conv2 = model_1.conv2
+        model.bn1 = model_1.bn1
+        model.relu = model_1.relu
+        model.layer1 = model_1.layer1
+        model.layer4 = model_1.layer4
+        model.fc = nn.Linear(model.fc.in_features, kwargs["num_classes"])
+        return model
+
+
 class BagNetModel(Model):
     def __init__(self, input_shape, n_classes, lr, device, patch_size, weight_decay, x_test, y_test, wandb, tau=0.5,
                  pretrained=False):
@@ -214,7 +234,7 @@ class BagNetModel(Model):
         self.device = device
         self.tau = tau
         self.patch_size = patch_size
-        self.rf_size = 9
+        self.rf_size = 5
         self.weight_decay = weight_decay
         self.x_test = x_test
         self.y_test = y_test
@@ -222,16 +242,18 @@ class BagNetModel(Model):
         self.test_res = {}
 
     def build_model(self):
-        if self.pretrained:
-            model = bagnet9(pretrained=True, clip_range=None, aggregation='mean')
-            model.fc = nn.Linear(model.fc.in_features, self.n_classes)
-            if self.input_shape[-1] == 1:
-                model.conv1 = nn.Conv2d(1, 64, kernel_size=1, stride=1, padding=0,
-                               bias=False)
-            return model
-        else:
-            return bagnet9(pretrained=False, clip_range=None, aggregation='mean', num_classes=self.n_classes,
-                           in_channels=self.input_shape[-1])
+        # if self.pretrained:
+        #     model = bagnet9(pretrained=True, clip_range=None, aggregation='mean')
+        #     model.fc = nn.Linear(model.fc.in_features, self.n_classes)
+        #     if self.input_shape[-1] == 1:
+        #         model.conv1 = nn.Conv2d(1, 64, kernel_size=1, stride=1, padding=0,
+        #                        bias=False)
+        #     return model
+        # else:
+        #     return bagnet9(pretrained=False, clip_range=None, aggregation='mean', num_classes=self.n_classes,
+        #                    in_channels=self.input_shape[-1])
+        return bagnet5(pretrained=self.pretrained, aggregation='mean', num_classes=self.n_classes,
+                       in_channels=self.input_shape[-1])
 
     def save(self, save_path, file_name="0", predictions=None):
         torch.save(self.model.state_dict(), os.path.join(save_path, file_name))
@@ -246,7 +268,7 @@ class BagNetModel(Model):
         data = transforms.RandomRotation(10)(data)
         return data
 
-    def fit(self, X, y, batch_size, epochs):
+    def fit(self, X, y, batch_size, epochs, x_test=None, y_test=None):
         X = np.transpose(X, (0, 3, 1, 2))
         self.mean = np.expand_dims(np.mean(X, axis=(0, 2, 3), dtype='float64'), axis=(1, 2))
         self.std = np.expand_dims(np.std(X, axis=(0, 2, 3), dtype='float64'), axis=(1, 2))
@@ -271,6 +293,7 @@ class BagNetModel(Model):
         optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         for epoch in range(epochs):
             self.model.train()
+            self.model.aggregation = 'mean'
             train_loss = 0
             correct = 0
             total = 0
@@ -297,6 +320,7 @@ class BagNetModel(Model):
             # if (epoch + 1) % 1 == 0:
             #     if testloader is not None:
             #         self.model.eval()
+            #         self.model.aggregation = 'mean'
             #         correct = 0
             #         total = 0
             #         test_loss = 0
@@ -334,7 +358,7 @@ class BagNetModel(Model):
         result_list = []
         confs = []
         clean_corr = 0
-        rf_stride = 8
+        rf_stride = 4
         window_size = ceil((self.patch_size + self.rf_size - 1) / rf_stride)
         self.model.eval()
         self.model.aggregation = 'none'
