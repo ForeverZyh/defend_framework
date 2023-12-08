@@ -21,7 +21,8 @@ def generate_friendly_noise(
         clamp_min=-32 / 255,
         clamp_max=32 / 255,
         return_preds=False,
-        loss_fn='KL'):
+        loss_fn='KL',
+        noise_shape=None):
     if loss_fn == 'MSE':
         criterion = torch.nn.MSELoss()
     elif loss_fn == 'KL':
@@ -34,8 +35,7 @@ def generate_friendly_noise(
     trainloader.dataset.transform = None
 
     dataset_size = len(trainloader.dataset)
-    # fixed shape for EMBER
-    friendly_noise = torch.zeros((dataset_size, 2351))
+    friendly_noise = torch.zeros(noise_shape)
     if return_preds:
         preds = torch.zeros((dataset_size, 2))
 
@@ -123,4 +123,14 @@ class BernoulliNoise(object):
     def __call__(self, tensor):
         noise = (torch.rand(tensor.size()) > 0.5).float() * 2 - 1
         out = tensor + noise * self.eps
+        return out
+
+
+class Normalize(object):
+    def __init__(self, mean, std):
+        self.mean = torch.tensor(mean)
+        self.std = torch.tensor(std)
+
+    def __call__(self, tensor):
+        out = (tensor - self.mean) / self.std
         return out

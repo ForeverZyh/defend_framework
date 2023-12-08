@@ -206,10 +206,14 @@ def precompute_DPA(res, in_place, at=None, sort=True, ret_dict=None, print_out=T
     return radius
 
 
-def precompute_DPA_tau(res_, pred_and_conf, args, sort=True):
-    n_classes = res_.shape[1] - 2
+def precompute_DPA_tau(res, pred_and_conf, args, control_res=None, sort=True):
+    n_classes = res.shape[1] - 2
     ret = {}
-    res = np.copy(res_)
+    if control_res is not None:
+        filters = np.argmax(control_res[:, :-1], axis=1) == control_res[:, -1]
+        print(np.mean(filters))
+    else:
+        filters = None
     for tau in np.linspace(0, 1, 101):
         res[:, :-1] = 0  # remove the prediction cnts
         for i in range(args.N):
@@ -219,8 +223,14 @@ def precompute_DPA_tau(res_, pred_and_conf, args, sort=True):
         # print("tau: %.2f\n" % tau)
         # print(res[:10])
         aux_dict = {}
+        aux_dict1 = {}
         precompute_DPA(res, args.in_place, at=args.poisoned_ins_num, sort=sort, ret_dict=aux_dict, print_out=False)
-        ret[tau] = aux_dict["res"]
+        if filters is not None:
+            precompute_DPA(res[filters], args.in_place, at=args.poisoned_ins_num, sort=sort, ret_dict=aux_dict1,
+                           print_out=False)
+        else:
+            aux_dict1["res"] = aux_dict["res"]
+        ret[tau] = (aux_dict["res"], aux_dict1["res"])
     return ret
 
 
@@ -412,11 +422,18 @@ if __name__ == "__main__":
     parser.add_argument("--in_place", action='store_true',
                         help="the backdoor attack is inplace replacement, so DPA only needs to divided by 2")
     parser.add_argument("--eval_class_only", default=None, type=int,
-                        help="evaluate on this class only, None for all the classes. Useful in computing FP, TP, FN, TN "
-                             "in binary classification"
+                        help="evaluate on this class only, None for all the classes. "
+                             "Useful in computing FP, TP, FN, TN in binary classification"
+                        )
+    parser.add_argument("--exclude_class_only", default=None, type=int,
+                        help="exclude the evaluation on this class only, None for all the classes. "
+                             "Useful in computing FP, TP, FN, TN in binary classification"
                         )
     parser.add_argument("--eval_partition", default=None, type=str,
-                        help="evaluate on this partition only, None for all. Will be calculated before the argument eval_class_only")
+                        help="evaluate on this partition only, None for all. "
+                             "Will be calculated before the argument eval_class_only")
+    parser.add_argument("--control_partition", default=None, type=str,
+                        help="The control set of predictions")
 
     args = parser.parse_args()
     with open(os.path.join(args.load_dir, "commandline_args.txt"), 'r') as f:
@@ -427,6 +444,7 @@ if __name__ == "__main__":
             args.patchguard = False
     if args.parallel_precompute is not None:
         assert args.parallel_precompute_id is not None and 0 <= args.parallel_precompute_id < args.parallel_precompute
+    assert args.eval_class_only is None or args.exclude_class_only is None
     poisoned_ins_num_range = range(args.poisoned_ins_num_st, args.poisoned_ins_num_en + 1, args.poisoned_ins_num_step)
     cache_filename = os.path.join(args.load_dir, args.cache_filename)
     if os.path.exists(cache_filename + ".npy"):
@@ -449,6 +467,11 @@ if __name__ == "__main__":
             a, b = np.load(os.path.join(args.load_model_dir, f"{i}_predictions.npy"))
             pred_and_conf.append([a, b])
 
+    if args.control_partition is not None:
+        control_res = res[eval(args.control_partition)]
+    else:
+        control_res = None
+
     if args.eval_partition is not None:
         res = res[eval(args.eval_partition)]
         for i in range(len(pred_and_conf)):
@@ -458,6 +481,16 @@ if __name__ == "__main__":
     if args.eval_class_only is not None:
         idx = res[:, -1] == args.eval_class_only
         res = res[idx]
+        if control_res is not None:
+            control_res = control_res[idx]
+        for i in range(len(pred_and_conf)):
+            pred_and_conf[i][0] = pred_and_conf[i][0][idx]
+            pred_and_conf[i][1] = pred_and_conf[i][1][idx]
+    elif args.exclude_class_only is not None:
+        idx = res[:, -1] != args.exclude_class_only
+        res = res[idx]
+        if control_res is not None:
+            control_res = control_res[idx]
         for i in range(len(pred_and_conf)):
             pred_and_conf[i][0] = pred_and_conf[i][0][idx]
             pred_and_conf[i][1] = pred_and_conf[i][1][idx]
@@ -621,7 +654,7 @@ if __name__ == "__main__":
     elif args.select_strategy == "DPA":
         if args.patchguard:
             if not args.draw_only:
-                np.save(cache_filename, precompute_DPA_tau(res, pred_and_conf, args))
+                np.save(cache_filename, precompute_DPA_tau(res, pred_and_conf, args, control_res))
             else:
                 raise NotImplementedError
         else:

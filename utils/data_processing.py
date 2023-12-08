@@ -311,6 +311,16 @@ class DataPreprocessor:
             this.data_processor = DataPreprocessor.build_processor(this.x_train, this.y_train, args)
             return this
 
+    @classmethod
+    def load_plain(cls, filename, args):
+        with open(filename, "rb") as f:
+            attack = pickle.load(f)
+            this = attack.data_processor
+            this.attack = attack
+            this.x_test = np.concatenate((this.x_test_poisoned, this.x_test), axis=0)
+            this.y_test = np.concatenate((this.y_test, this.y_test), axis=0)
+            return this
+
     @staticmethod
     def build_processor(x_train, y_train, args):
         if args.select_strategy is not None and args.select_strategy == "FPA":

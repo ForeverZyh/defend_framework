@@ -27,8 +27,10 @@ import matplotlib.pyplot as plt
 import copy
 import pandas as pd
 
-from friendly_noise.friendly_noise import generate_friendly_noise, UniformNoise, GaussianNoise, BernoulliNoise
-from utils.data_processing import get_ember
+from friendly_noise.friendly_noise import generate_friendly_noise, UniformNoise, GaussianNoise, BernoulliNoise, \
+    Normalize
+from utils.data_processing import get_ember, CIFAR02DataPreprocessor, MNISTDataPreprocessor
+from models.bagnet import bagnet5
 
 
 class mlp_4layer(nn.Module):
@@ -63,7 +65,7 @@ class mlp_4layer(nn.Module):
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-MAX_VALUE = 100
+MAX_VALUE = 255
 best_acc = 0
 
 
@@ -288,6 +290,14 @@ def train(args, trainloader, noaug_trainloader, test_loader, model, optimizer, s
         if 'friendly' in args.noise_type and epoch == args.friendly_begin_epoch:
             logger.info(
                 f"Generating friendly noise: epochs={args.friendly_epochs}  mu={args.friendly_mu} lr={args.friendly_lr} loss={args.friendly_loss}")
+            if args.dataset == "ember":
+                noise_shape = (len(noaug_trainloader.dataset), 2351)
+            elif args.dataset == "cifar10-02":
+                noise_shape = (len(noaug_trainloader.dataset), 3, 32, 32)
+            elif args.dataset == "mnist":
+                noise_shape = (len(noaug_trainloader.dataset), 1, 28, 28)
+            else:
+                raise NotImplementedError
             out = generate_friendly_noise(
                 model,
                 noaug_trainloader,
@@ -298,7 +308,8 @@ def train(args, trainloader, noaug_trainloader, test_loader, model, optimizer, s
                 clamp_min=-args.friendly_clamp / MAX_VALUE,
                 clamp_max=args.friendly_clamp / MAX_VALUE,
                 return_preds=args.save_friendly_noise,
-                loss_fn=args.friendly_loss)
+                loss_fn=args.friendly_loss,
+                noise_shape=noise_shape)
             model.zero_grad()
             model.train()
 
@@ -359,7 +370,7 @@ def train(args, trainloader, noaug_trainloader, test_loader, model, optimizer, s
                         epochs=args.epochs,
                         batch=batch_idx + 1,
                         iter=args.eval_step,
-                        # lr=scheduler.get_last_lr()[0],
+                        lr=scheduler.get_last_lr()[0],
                         data=data_time.avg,
                         bt=batch_time.avg,
                         loss=losses.avg))
@@ -370,7 +381,7 @@ def train(args, trainloader, noaug_trainloader, test_loader, model, optimizer, s
         if not args.no_progress:
             p_bar.close()
 
-        # scheduler.step()
+        scheduler.step()
 
         if epoch % args.val_freq != 0 and epoch != args.epochs - 1:
             continue
@@ -425,13 +436,40 @@ def train(args, trainloader, noaug_trainloader, test_loader, model, optimizer, s
         #     'times_selected': times_selected,
         # }, is_best, args.out)
 
-        test_bd_mw_accs.append(test(args, x_test[:100000], y_test[:100000], test_model, loss_fn)[1])
-        test_clean_gw_accs.append(test(args, x_test[100000:200000], y_test[100000:200000], test_model, loss_fn)[1])
-        test_clean_mw_accs.append(test(args, x_test[200000:300000], y_test[200000:300000], test_model, loss_fn)[1])
-        # logger.info('Best top-1 acc: {:.2f}'.format(best_acc))
-        logger.info('test_bd_mw acc: {:.2f}'.format(test_bd_mw_accs[-1]))
-        logger.info(f'test_clean_mw acc: {test_clean_mw_accs[-1]}')
-        logger.info(f'test_clean_gw acc: {test_clean_gw_accs[-1]}\n')
+        if args.dataset == "ember":
+            _, acc, pred = test(args, x_test[:100000], y_test[:100000], test_model, loss_fn)
+            test_bd_mw_accs.append(acc)
+            test_clean_gw_accs.append(test(args, x_test[100000:200000], y_test[100000:200000], test_model, loss_fn)[1])
+            _, acc, pred1 = test(args, x_test[200000:300000], y_test[200000:300000], test_model, loss_fn)
+            test_clean_mw_accs.append(acc)
+            new_acc = np.sum(pred & pred1) / np.sum(pred1) * 100
+            # logger.info('Best top-1 acc: {:.2f}'.format(best_acc))
+            logger.info('test_bd_mw acc: {:.2f}'.format(test_bd_mw_accs[-1]))
+            logger.info(f'test_clean_mw acc: {test_clean_mw_accs[-1]}')
+            logger.info(f'test_clean_gw acc: {test_clean_gw_accs[-1]}')
+            logger.info(f'new_acc: {round(new_acc, 2)}\n')
+        elif args.dataset == "cifar10-02":
+            indices = y_test[:2000] == 1
+            _, acc, pred = test(args, x_test[:2000][indices], y_test[:2000][indices], test_model, loss_fn)
+            test_bd_mw_accs.append(acc)
+            _, acc, pred1 = test(args, x_test[2000:4000], y_test[2000:4000], test_model, loss_fn)
+            pred1 = pred1[indices]
+            test_clean_gw_accs.append(acc)
+            new_acc = np.sum(pred & pred1) / np.sum(pred1) * 100
+            logger.info('test_poisoned acc: {:.2f}'.format(test_bd_mw_accs[-1]))
+            logger.info(f'test_clean acc: {test_clean_gw_accs[-1]}')
+            logger.info(f'new_acc: {round(new_acc, 2)}\n')
+        elif args.dataset == "mnist":
+            indices = y_test[:10000] != 0
+            _, acc, pred = test(args, x_test[:10000][indices], y_test[:10000][indices], test_model, loss_fn)
+            test_bd_mw_accs.append(acc)
+            _, acc, pred1 = test(args, x_test[10000:20000], y_test[10000:20000], test_model, loss_fn)
+            pred1 = pred1[indices]
+            test_clean_gw_accs.append(acc)
+            new_acc = np.sum(pred & pred1) / np.sum(pred1) * 100
+            logger.info('test_poisoned acc: {:.2f}'.format(test_bd_mw_accs[-1]))
+            logger.info(f'test_clean acc: {test_clean_gw_accs[-1]}')
+            logger.info(f'new_acc: {round(new_acc, 2)}\n')
 
     # time_end = time.time()
     # # Save to csv output
@@ -463,7 +501,7 @@ def test(args, x_test, y_test, model, loss_fn):
 
     if not args.no_progress:
         test_loader = tqdm(test_loader)
-
+    preds = np.array([], dtype=np.bool)
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(test_loader):
             data_time.update(time.time() - end)
@@ -472,6 +510,8 @@ def test(args, x_test, y_test, model, loss_fn):
             inputs = inputs.to(args.device)
             targets = targets.to(args.device)
             outputs = model(inputs)
+            pred = (outputs.argmax(dim=1) == targets).cpu().numpy()
+            preds = np.append(preds, pred)
             loss = loss_fn(outputs, targets).mean()
 
             prec1 = accuracy(outputs, targets)[0]
@@ -493,7 +533,7 @@ def test(args, x_test, y_test, model, loss_fn):
             test_loader.close()
 
     logger.info("top-1 acc: {:.2f}".format(top1.avg))
-    return losses.avg, top1.avg
+    return losses.avg, top1.avg, preds
 
 
 def main():
@@ -502,19 +542,20 @@ def main():
                         help='id(s) for CUDA_VISIBLE_DEVICES')
     parser.add_argument('--num-workers', type=int, default=4,
                         help='number of workers')
-    parser.add_argument('--dataset', default='cifar10', type=str,
-                        choices=['cifar10', 'tinyimagenet'],
+    parser.add_argument('--dataset', default='cifar10-02', type=str,
+                        choices=['cifar10-02', 'tinyimagenet', 'mnist', 'ember'],
                         help='dataset name')
-    parser.add_argument('--arch', default='resnet18', type=str,
-                        choices=['resnet18', 'alexnet', 'lenet'],
-                        help='dataset name')
+    # parser.add_argument('--arch', default='resnet18', type=str,
+    #                     choices=['resnet18', 'alexnet', 'lenet'],
+    #                     help='dataset name')
+    # will use custom archs
     parser.add_argument('--epochs', default=40, type=int,
                         help='number of epochs')
     parser.add_argument('--start-epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts)')
-    parser.add_argument('--val_freq', default=10, type=int,
+    parser.add_argument('--val_freq', default=1, type=int,
                         help='how frequent to run validation')
-    parser.add_argument('--batch-size', default=128, type=int,
+    parser.add_argument('--batch-size', default=64, type=int,
                         help='train batchsize')
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                         help='initial learning rate')
@@ -547,11 +588,11 @@ def main():
 
     parser.add_argument('--noise_type', type=str, nargs='*', help='type of noise to apply', default=[],
                         choices=["uniform", "gaussian", "bernoulli", "gaussian_blur", "friendly"])
-    parser.add_argument('--noise_eps', type=float, help='strength of noise to apply', default=8)
+    parser.add_argument('--noise_eps', type=float, help='strength of noise to apply', default=16)
 
-    parser.add_argument('--friendly_begin_epoch', type=int, help='epoch to start adding friendly noise', default=0)
+    parser.add_argument('--friendly_begin_epoch', type=int, help='epoch to start adding friendly noise', default=5)
     parser.add_argument('--friendly_epochs', type=int, help='number of epochs to run friendly noise generation for',
-                        default=30)
+                        default=20)
     parser.add_argument('--friendly_lr', type=float, help='learning rate for friendly noise generation', default=100)
     parser.add_argument('--friendly_mu', type=float, help='weight of magnitude constraint term in friendly noise loss',
                         default=1)
@@ -565,9 +606,10 @@ def main():
                         )
     parser.add_argument("--ember_data_dir", default="/tmp", type=str, help="dir to store cached ember dataset")
     args = parser.parse_args()
-
-    global best_acc, transform_train, transform_val
+    global best_acc, transform_train, transform_val, transform_train_noaug
     transform_train = []
+    transform_train_noaug = []
+    transform_val = []
 
     if "uniform" in args.noise_type:
         print(f"Adding uniform noise: {args.noise_eps}")
@@ -580,13 +622,58 @@ def main():
         transform_train.append(BernoulliNoise(eps=args.noise_eps / MAX_VALUE))
     if "friendly" in args.noise_type:
         print(f"Using friendly noise")
-    transform_train = transforms.Compose(transform_train)
+    if args.dataset in ["mnist", "cifar10-02"]:
+        transform_train.append(transforms.RandomCrop(28 if args.dataset == "mnist" else 32, 3))
+        transform_train.append(transforms.RandomRotation(10))
 
     device = torch.device('cuda', args.gpu_id)
     args.world_size = 1
     args.n_gpu = torch.cuda.device_count()
 
     args.device = device
+
+    if args.dataset == "ember":
+        data_processor = EmberPoisonDataPreProcessor(args)
+        minmax = MinMaxScaler(clip=True)
+        data_processor.x_train = minmax.fit_transform(data_processor.x_train)
+        data_processor.x_test = minmax.transform(data_processor.x_test)
+        base_dataset = TensorDataset(torch.Tensor(data_processor.x_train), torch.Tensor(data_processor.y_train).long())
+        args.train_size = data_processor.x_train.shape[0]
+        target_class = 1
+        poisoned_label = 0
+        target_img = None
+
+        model = mlp_4layer(2351, 1)
+        model.to(args.device)
+    elif args.dataset in ["cifar10-02", "mnist"]:
+        if args.dataset == "cifar10-02":
+            data_processor = CIFAR02DataPreprocessor.load_plain(os.path.join(args.load_poison_dir, "data"), args)
+        else:
+            data_processor = MNISTDataPreprocessor.load_plain(os.path.join(args.load_poison_dir, "data"), args)
+        data_processor.x_train = np.transpose(data_processor.x_train, (0, 3, 1, 2))
+        data_processor.x_test = np.transpose(data_processor.x_test, (0, 3, 1, 2))
+        xmean = np.expand_dims(np.mean(data_processor.x_train, axis=(0, 2, 3), dtype='float64'), axis=(1, 2)).astype(
+            np.float32)
+        xstd = np.expand_dims(np.std(data_processor.x_train, axis=(0, 2, 3), dtype='float64'), axis=(1, 2)).astype(
+            np.float32)
+        # data_processor.x_train = (data_processor.x_train - xmean) / xstd
+        transform_train.append(Normalize(xmean, xstd))
+        transform_train_noaug.append(Normalize(xmean, xstd))
+        data_processor.x_test = (data_processor.x_test - xmean) / xstd
+        base_dataset = TensorDataset(torch.Tensor(data_processor.x_train), torch.Tensor(data_processor.y_train).long())
+        args.train_size = data_processor.x_train.shape[0]
+        target_class = 1
+        poisoned_label = 0
+        target_img = None
+
+        model = bagnet5(True, aggregation='mean', num_classes=2 if args.dataset == "cifar10-02" else 10,
+                        in_channels=data_processor.x_train.shape[1])
+        model.to(args.device)
+    else:
+        raise NotImplementedError
+
+    transform_train = transforms.Compose(transform_train)
+    transform_train_noaug = transforms.Compose(transform_train_noaug)
 
     if args.seed is not None:
         set_seed(args)
@@ -596,7 +683,8 @@ def main():
     else:
         args.steps = [args.epochs // 2.667, args.epochs // 1.6, args.epochs // 1.142]
 
-    dir_name = f'{args.arch}-{args.dataset}'
+    # dir_name = f'{args.arch}-{args.dataset}'
+    dir_name = f'{args.dataset}'
     dir_name += '-clean' if args.clean else f'-{"ember"}'
     dir_name += f'.{args.seed}-sl-epoch{args.epochs}'
     dir_name += f'-warmup{args.warmup}' if args.warmup > 0 else ''
@@ -635,14 +723,6 @@ def main():
         f"n_gpu: {args.n_gpu}")
 
     logger.info(dict(args._get_kwargs()))
-    data_processor = EmberPoisonDataPreProcessor(args)
-    minmax = MinMaxScaler(clip=True)
-    data_processor.x_train = minmax.fit_transform(data_processor.x_train)
-    # data_processor.x_train = np.expand_dims(data_processor.x_train, axis=(1, 2))
-    data_processor.x_test = minmax.transform(data_processor.x_test)
-    # data_processor.x_test = np.expand_dims(data_processor.x_test, axis=(1, 2))
-    base_dataset = TensorDataset(torch.Tensor(data_processor.x_train), torch.Tensor(data_processor.y_train).long())
-    args.train_size = data_processor.x_train.shape[0]
 
     train_dataset = PerturbedPoisonedDataset(
         trainset=base_dataset,
@@ -655,19 +735,10 @@ def main():
     noaug_train_dataset = PerturbedPoisonedDataset(
         trainset=base_dataset,
         indices=np.array(range(len(base_dataset))),
-        transform=None,
+        transform=transform_train_noaug,
         return_index=True,
         size=args.train_size,
         convert_tensor=False)
-
-    poison_indices = []
-    poison_tuples = []
-    target_class = 1
-    poisoned_label = 0
-    target_img = None
-
-    model = mlp_4layer(2351, 1)
-    model.to(args.device)
 
     logger.info(f"Target class {target_class}; Poisoned label: {poisoned_label}")
 
@@ -713,14 +784,14 @@ def main():
     ]
     optimizer = optim.SGD(grouped_parameters, lr=args.lr,
                           momentum=0.9, nesterov=args.nesterov)
-    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, args.steps)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, args.steps)
     if args.warmup > 0:
         logger.info('Warm start learning rate')
         raise NotImplementedError
-        # lr_scheduler_f = GradualWarmupScheduler(optimizer, 1.0, args.warmup, scheduler)
+        lr_scheduler_f = GradualWarmupScheduler(optimizer, 1.0, args.warmup, scheduler)
     else:
         logger.info('No Warm start')
-        # lr_scheduler_f = scheduler
+        lr_scheduler_f = scheduler
 
     loss_fn = nn.CrossEntropyLoss(reduction='none')
 
@@ -758,7 +829,7 @@ def main():
     #     'optimizer': optimizer.state_dict(),
     #     'scheduler': scheduler.state_dict(),
     # }, is_best=False, checkpoint=args.out, filename='init.pth.tar')
-    train(args, train_loader, noaug_train_loader, test_loader, model, optimizer, None, target_img,
+    train(args, train_loader, noaug_train_loader, test_loader, model, optimizer, lr_scheduler_f, target_img,
           target_class, poisoned_label, None, loss_fn, None, None, None)
 
 
