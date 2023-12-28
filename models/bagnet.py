@@ -78,7 +78,7 @@ class Bottleneck(nn.Module):
 class BagNet(nn.Module):
 
     def __init__(self, block, layers, strides=[1, 2, 2, 2], kernel3=[0, 0, 0, 0], num_classes=1000, clip_range=None,
-                 aggregation='mean', in_channels=3):
+                 aggregation='mean', in_channels=3, window_size=None):
         self.inplanes = 64
         super(BagNet, self).__init__()
         self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=1, stride=1, padding=0,
@@ -94,6 +94,7 @@ class BagNet(nn.Module):
         self.avgpool = nn.AvgPool2d(1, stride=1)
         self.fc = nn.Linear(512 * block.expansion, num_classes)
         self.block = block
+        self.window_size = window_size
 
         self.clip_range = clip_range
         self.aggregation = aggregation
@@ -142,7 +143,7 @@ class BagNet(nn.Module):
         x = self.fc(x)
         if self.clip_range is not None:
             x = torch.clamp(x, self.clip_range[0], self.clip_range[1])
-        if self.aggregation == 'mean':
+        if self.aggregation == 'mean' or (self.aggregation == 'adv' and self.window_size == 0):
             x = torch.mean(x, dim=(1, 2))
         elif self.aggregation == 'median':
             x = x.view([x.size()[0], -1, 10])
@@ -152,7 +153,7 @@ class BagNet(nn.Module):
             x = torch.tanh(x * 0.05 - 1)
             x = torch.mean(x, dim=(1, 2))
         elif self.aggregation == 'adv':  # provable adversarial training
-            window_size = 1  # the size of window to be masked during the training
+            window_size = self.window_size  # the size of window to be masked during the training, should be 3 but 1 and 2 work better
             B, W, H, C = x.size()
             x = torch.clamp(x, 0, torch.tensor(float('inf')))  # clip
             tmp = x[torch.arange(B), :, :, y]  # the feature map for the true class
@@ -253,7 +254,7 @@ class BagNetModel(Model):
         #     return bagnet9(pretrained=False, clip_range=None, aggregation='mean', num_classes=self.n_classes,
         #                    in_channels=self.input_shape[-1])
         return bagnet5(pretrained=self.pretrained, aggregation='mean', num_classes=self.n_classes,
-                       in_channels=self.input_shape[-1])
+                       in_channels=self.input_shape[-1], window_size=2 if self.n_classes == 2 else 0)
 
     def save(self, save_path, file_name="0", predictions=None):
         torch.save(self.model.state_dict(), os.path.join(save_path, file_name))
@@ -272,6 +273,7 @@ class BagNetModel(Model):
         X = np.transpose(X, (0, 3, 1, 2))
         self.mean = np.expand_dims(np.mean(X, axis=(0, 2, 3), dtype='float64'), axis=(1, 2))
         self.std = np.expand_dims(np.std(X, axis=(0, 2, 3), dtype='float64'), axis=(1, 2))
+        self.std = np.maximum(self.std, 1e-2)
         X = (X - self.mean) / self.std
         print(self.mean, self.std)
         data = TensorDataset(torch.Tensor(X), torch.Tensor(y).long().max(dim=-1)[1])
@@ -293,7 +295,7 @@ class BagNetModel(Model):
         optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         for epoch in range(epochs):
             self.model.train()
-            self.model.aggregation = 'mean'
+            self.model.aggregation = 'adv'
             train_loss = 0
             correct = 0
             total = 0
@@ -312,40 +314,41 @@ class BagNetModel(Model):
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
 
-            # if (epoch + 1) % 1 == 0:
-            #     print(f"Train Accuracy: {round(100. * correct / total, 2)}, "
-            #           f"Loss: {round(train_loss / len(loader), 4)} at epoch {epoch}")
-            #     wandb_log["train_loss"] = train_loss / len(loader)
-            #     wandb_log["train_acc"] = 100. * correct / total
-            # if (epoch + 1) % 1 == 0:
-            #     if testloader is not None:
-            #         self.model.eval()
-            #         self.model.aggregation = 'mean'
-            #         correct = 0
-            #         total = 0
-            #         test_loss = 0
-            #         for batch_idx, (inputs, targets) in enumerate(testloader):
-            #             inputs, targets = inputs.to(self.device), targets.to(self.device)
-            #             outputs = self.model(inputs, y=targets)
-            #             loss = criterion(outputs, targets)
-            #             test_loss += loss.item()
-            #             _, predicted = outputs.max(1)
-            #             total += targets.size(0)
-            #             correct += predicted.eq(targets).sum().item()
-            #
-            #         print(f"Test Accuracy: {round(100. * correct / total, 2)}, "
-            #               f"Loss: {round(test_loss / len(testloader), 4)} at epoch {epoch}")
-            #         wandb_log["test_loss"] = test_loss / len(testloader)
-            #         wandb_log["test_acc"] = 100. * correct / total
-            #         if epoch not in self.test_res:
-            #             self.test_res[epoch] = []
-            #         self.test_res[epoch].append(round(100. * correct / total, 2))
+            # continue
+            if (epoch + 1) % 1 == 0:
+                print(f"Train Accuracy: {round(100. * correct / total, 2)}, "
+                      f"Loss: {round(train_loss / len(loader), 4)} at epoch {epoch}")
+                wandb_log["train_loss"] = train_loss / len(loader)
+                wandb_log["train_acc"] = 100. * correct / total
+            if (epoch + 1) % 1 == 0:
+                if testloader is not None:
+                    self.model.eval()
+                    self.model.aggregation = 'mean'
+                    correct = 0
+                    total = 0
+                    test_loss = 0
+                    for batch_idx, (inputs, targets) in enumerate(testloader):
+                        inputs, targets = inputs.to(self.device), targets.to(self.device)
+                        outputs = self.model(inputs, y=targets)
+                        loss = criterion(outputs, targets)
+                        test_loss += loss.item()
+                        _, predicted = outputs.max(1)
+                        total += targets.size(0)
+                        correct += predicted.eq(targets).sum().item()
+
+                    print(f"Test Accuracy: {round(100. * correct / total, 2)}, "
+                          f"Loss: {round(test_loss / len(testloader), 4)} at epoch {epoch}")
+                    wandb_log["test_loss"] = test_loss / len(testloader)
+                    wandb_log["test_acc"] = 100. * correct / total
+                    if epoch not in self.test_res:
+                        self.test_res[epoch] = []
+                    self.test_res[epoch].append(round(100. * correct / total, 2))
 
             if self.wandb is not None:
                 self.wandb.log(wandb_log, commit=True)
 
-        # for epoch in sorted(self.test_res.keys()):
-        #     print(epoch, np.mean(self.test_res[epoch]))
+        for epoch in sorted(self.test_res.keys()):
+            print(epoch, np.mean(self.test_res[epoch]))
 
     def evaluate(self, x_test, y_test, tune=True):
         x_test = np.transpose(x_test, (0, 3, 1, 2))

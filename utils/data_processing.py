@@ -13,7 +13,7 @@ from torchvision import transforms
 import PIL
 
 from utils.ember_feature_utils import load_features
-from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET, CONTAGIO_DATASET
+from utils import EMBER_DATASET, FEATURE_DATASET, LANGUAGE_DATASET, CONTAGIO_DATASET, IMAGE_DATASET
 
 
 class DataProcessor:
@@ -276,24 +276,43 @@ class FPADataProcessor(DataProcessor):
         self.DPA_partition_cnt = 0
         assert self.select_strategy == "FPA"
         self.k = k
-        assert 0 < k <= X.shape[1]
-        assert dataset in EMBER_DATASET and noise_strategy is None
-        self.ids = np.arange(self.X.shape[1])
+        assert noise_strategy is None
+        if dataset in EMBER_DATASET:
+            assert 0 < k <= X.shape[1]
+            self.ids = np.arange(self.X.shape[1])
+            self.minmax = MinMaxScaler(clip=True)
+            self.X = self.minmax.fit_transform(self.X)
+        elif dataset in IMAGE_DATASET:
+            assert 0 < k <= X.shape[1] * X.shape[2]
+            self.ids = np.arange(self.X.shape[1] * self.X.shape[2])
+        else:
+            raise NotImplementedError()
         np.random.seed(42)
         np.random.shuffle(self.ids)
-        self.minmax = MinMaxScaler(clip=True)
-        self.X = self.minmax.fit_transform(self.X)
+
+    def transform_shape(self, ret_X, ids):
+        if self.dataset in EMBER_DATASET:
+            ret_X = ret_X[:, ids]
+            return ret_X
+        elif self.dataset in IMAGE_DATASET:
+            ret_X = ret_X.reshape(ret_X.shape[0], -1, ret_X.shape[-1])
+            new_ret_X = np.zeros_like(ret_X)
+            new_ret_X[:, ids] = ret_X[:, ids]
+            new_ret_X = new_ret_X.reshape(ret_X.shape[0], self.X.shape[1], self.X.shape[2], self.X.shape[-1])
+            return new_ret_X
+        else:
+            raise NotImplementedError()
 
     def process_train(self, key_dict):
         ret_X = self.X.copy()
         ret_y = self.y.copy()  # make sure the original data is not modified
         ids = self.ids[self.DPA_partition_cnt * self.k:(self.DPA_partition_cnt + 1) * self.k]
         self.DPA_partition_cnt += 1
-        return ret_X[:, ids], ret_y
+        return self.transform_shape(ret_X, ids), ret_y
 
     def process_test(self, X, fix_noise):
         ids = self.ids[(self.DPA_partition_cnt - 1) * self.k:self.DPA_partition_cnt * self.k]  # already increased
-        return X[:, ids]
+        return self.transform_shape(X, ids)
 
 
 class DataPreprocessor:

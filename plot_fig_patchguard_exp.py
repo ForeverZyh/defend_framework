@@ -6,7 +6,7 @@ import warnings
 import csv
 
 
-def draw(pecan, patchguard, friendly_noise_acc, name, best_id=None, best_id1=None):
+def draw(pecan, patchguard, friendly_noise_acc, name, best_id=None, best_id1=None, fpa_acc=None):
     # create a Pareto frontier
     fig, ax = plt.subplots()
     ax.set_title(f"{name} data")
@@ -29,9 +29,9 @@ def draw(pecan, patchguard, friendly_noise_acc, name, best_id=None, best_id1=Non
     line1, = ax.plot(xs, ys, color="blue", linestyle=":", label="_")
     # draw a point at (xs[-1], ys[-1])
     ax.scatter(xs[best_id], ys[best_id], color="blue", marker="x", label="PECAN")
-    ax.text(xs[best_id] + 1, ys[best_id] + 1, f"PECAN")
+    # ax.text(xs[best_id] + 1, ys[best_id] + 1, f"PECAN")
     ax.scatter(xs[-1], ys[-1], color="blue", marker="o", label="DPA only")
-    ax.text(xs[-1] + 1, ys[-1] + 1, f"DPA only")
+    # ax.text(xs[-1] + 1, ys[-1] + 1, f"DPA only")
     keys = sorted(list(patchguard.keys()))
     xs = []
     ys = []
@@ -42,11 +42,13 @@ def draw(pecan, patchguard, friendly_noise_acc, name, best_id=None, best_id1=Non
         best_id1 = np.argmax(np.array(ys) - np.array(xs))
     line2, = ax.plot(xs, ys, color="red", linestyle=":", label="_")
     ax.scatter(xs[best_id1], ys[best_id1], color="red", marker="^", label="PatchGuard++")
-    ax.text(xs[best_id1] + 1, ys[best_id1] + 1, f"PatchGuard++")
+    # ax.text(xs[best_id1] + 1, ys[best_id1] + 1, f"PatchGuard++")
     ax.scatter(xs[-1], ys[-1], color="red", marker="v", label="No Defense")
-    ax.text(xs[-1] + 1, ys[-1] + 1, f"No Defense")
+    # ax.text(xs[-1] + 1, ys[-1] + 1, f"No Defense")
     ax.scatter(100 - friendly_noise_acc, friendly_noise_acc, color="green", marker="<", label="Friendly Noise")
-    ax.text(100 - friendly_noise_acc + 1, friendly_noise_acc + 1, f"Friendly Noise")
+    if fpa_acc is not None:
+        ax.scatter(fpa_acc[1], fpa_acc[0], color="orange", marker=">", label="FPA")
+    # ax.text(100 - friendly_noise_acc + 1, friendly_noise_acc + 1, f"Friendly Noise")
     # draw legend
     ax.legend()
     plt.savefig(os.path.join(args.load_dir_pecan, f"{name}.pdf"))
@@ -113,15 +115,19 @@ if __name__ == "__main__":
 
     # (accuracy on poisoned data, accuracy on clean data, accuracy on poisoned data with control)
     if args.d == "mnist":
-        friendlynoise = (np.mean([38.22, 49.18, 37.36, 40.16, 35.73]),
-                         np.mean([91.35, 90.63, 76.6, 76.87, 79.22]),
-                         np.mean([40.36, 50.57, 44.88, 48.59, 41.12]))
+        friendlynoise = (np.mean([71.24, 73.82, 75.49, 85.67, 71.39]),
+                         np.mean([79.51, 84.78, 88.66, 90.97, 82.74]),
+                         np.mean([90.58, 87.02, 84.99, 93.8, 86.58]))
+        fpa = ([0, 0], [0, 0], [0, 0])
     else:
         friendlynoise = (np.mean([74.6, 69.7, 70.7, 75.6, 69.7]),
                          np.mean([86.65, 85.55, 85.45, 86.05, 85.35]),
                          np.mean([86.93, 81.43, 84.65, 88.3, 82.66]))
+        fpa = ([37.6, 3.9], [22.85, 5.75], [58.2, 0])
 
-    best_id, best_id1 = draw(pecan_poisoned_dict_ctrl, patchguard_poisoned_dict_ctrl, friendlynoise[2], "control")
+    best_id, best_id1 = draw(pecan_poisoned_dict_ctrl, patchguard_poisoned_dict_ctrl, friendlynoise[2], "control",
+                             fpa_acc=fpa[2])
     draw(pecan_poisoned_dict, patchguard_poisoned_dict, friendlynoise[0], "poisoned", best_id=best_id,
-         best_id1=best_id1)
-    draw(pecan_clean_dict, patchguard_clean_dict, friendlynoise[1], "clean", best_id=best_id, best_id1=best_id1)
+         best_id1=best_id1, fpa_acc=fpa[0])
+    draw(pecan_clean_dict, patchguard_clean_dict, friendlynoise[1], "clean", best_id=best_id, best_id1=best_id1,
+         fpa_acc=fpa[1])

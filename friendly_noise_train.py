@@ -501,7 +501,7 @@ def test(args, x_test, y_test, model, loss_fn):
 
     if not args.no_progress:
         test_loader = tqdm(test_loader)
-    preds = np.array([], dtype=np.bool)
+    preds = np.array([], dtype=bool)
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(test_loader):
             data_time.update(time.time() - end)

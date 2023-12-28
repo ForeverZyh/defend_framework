@@ -234,7 +234,7 @@ def precompute_DPA_tau(res, pred_and_conf, args, control_res=None, sort=True):
     return ret
 
 
-def precompute_FPA(res, sort=True):
+def precompute_FPA(res, control_res=None, at=None, sort=True, print_out=True):
     # res.shape: (n_examples, n_classes + 2)
     radius = []
     cor_cnt = 0
@@ -268,6 +268,14 @@ def precompute_FPA(res, sort=True):
         radius.sort()
         mcr = (radius[len(res) // 2 - 1] + radius[len(res) // 2]) / 2.0 if len(res) % 2 == 0 else radius[len(res) // 2]
         print(f"Normal Acc: {cor_cnt * 100.0 / len(res):.2f}\tAUC: {auc * 1.0 / len(res):.2f}\tMCR: {mcr:.1f}")
+        if at is not None:
+            cert_acc = np.sum(np.array(radius) >= at) * 100.0 / len(res)
+            cert_wrong = np.sum(-np.array(radius) - 3 >= at) * 100.0 / len(res)
+            abstain = 100 - cert_acc - cert_wrong
+            if print_out:
+                print(f"Cert Acc@{at}: {round(cert_acc, 2)}")
+                print(f"Cert Wrong@{at}: {round(cert_wrong, 2)}")
+                print(f"Abstain@{at}: {round(abstain, 2)}")
     return radius
 
 
@@ -669,6 +677,10 @@ if __name__ == "__main__":
                         cache[poison_ins_num] = ret
                         np.save(cache_filename, cache)
     elif args.select_strategy == "FPA":
-        np.save(cache_filename, precompute_FPA(res))
+        np.save(cache_filename, precompute_FPA(res, control_res, at=args.poisoned_ins_num))
+        if control_res is not None:
+            filters = np.argmax(control_res[:, :-1], axis=1) == control_res[:, -1]
+            print(np.mean(filters))
+            precompute_FPA(res[filters], control_res, at=args.poisoned_ins_num)
     else:
         raise NotImplementedError
