@@ -467,8 +467,9 @@ if __name__ == "__main__":
         cache = dict()
     if not args.eval_noise:
         res, _ = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
+        tmp_res = res
     else:
-        _, res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
+        tmp_res, res = np.load(os.path.join(args.load_dir, "aggre_res.npy"))
     pred_and_conf = []
     if args.load_model_dir is not None:
         for i in range(args.N):
@@ -476,7 +477,7 @@ if __name__ == "__main__":
             pred_and_conf.append([a, b])
 
     if args.control_partition is not None:
-        control_res = res[eval(args.control_partition)]
+        control_res = tmp_res[eval(args.control_partition)]
     else:
         control_res = None
 
@@ -668,6 +669,11 @@ if __name__ == "__main__":
         else:
             if not args.draw_only:
                 np.save(cache_filename, precompute_DPA(res, args.in_place, at=args.poisoned_ins_num))
+                if control_res is not None:
+                    filters = np.argmax(control_res[:, :-2], axis=1) == control_res[:, -1]
+                    print(np.mean(filters))
+                    precompute_DPA(res[filters], args.in_place, at=args.poisoned_ins_num)
+
             else:
                 for poison_ins_num in poisoned_ins_num_range:
                     if poison_ins_num in cache:

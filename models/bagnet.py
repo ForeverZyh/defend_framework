@@ -229,7 +229,7 @@ def bagnet5(pretrained=False, strides=[2, 2, 1, 1], **kwargs):
 
 class BagNetModel(Model):
     def __init__(self, input_shape, n_classes, lr, device, patch_size, weight_decay, x_test, y_test, wandb, tau=0.5,
-                 pretrained=False):
+                 pretrained=False, mode="adv"):
         self.pretrained = pretrained
         super().__init__(input_shape, n_classes, lr)
         self.device = device
@@ -241,6 +241,7 @@ class BagNetModel(Model):
         self.y_test = y_test
         self.wandb = wandb
         self.test_res = {}
+        self.mode = mode
 
     def build_model(self):
         # if self.pretrained:
@@ -295,7 +296,7 @@ class BagNetModel(Model):
         optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         for epoch in range(epochs):
             self.model.train()
-            self.model.aggregation = 'adv'
+            self.model.aggregation = self.mode
             train_loss = 0
             correct = 0
             total = 0
@@ -314,7 +315,7 @@ class BagNetModel(Model):
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
 
-            # continue
+            continue
             if (epoch + 1) % 1 == 0:
                 print(f"Train Accuracy: {round(100. * correct / total, 2)}, "
                       f"Loss: {round(train_loss / len(loader), 4)} at epoch {epoch}")

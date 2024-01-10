@@ -131,22 +131,24 @@ if __name__ == "__main__":
     else:
         model = Model_type(data_loader.n_features, data_loader.n_classes)
 
-    train_single(data_loader, model, args)
-    print("Clean Test Set:")
-    res = model.evaluate(data_loader.x_test, keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
-    print("Poisoned Test Set:")
-    res1 = model.evaluate(data_loader.x_test_poisoned,
-                          keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
-    model.save(filepath, predictions=res + res1)
-    for i in range(data_loader.n_classes):
-        idx = np.where(data_loader.y_test == i)[0]
-        if attack_targets[i] is None:
-            print(f"class {i} is not poisoned:")
-            model.evaluate(data_loader.x_test_poisoned[idx],
-                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes),
-                           tune=False)
-        else:
-            print(f"class {i} is poisoned:")
-            model.evaluate(data_loader.x_test_poisoned[idx],
-                           keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes),
-                           tune=False)
+    for repeat_num in range(5):
+        train_single(data_loader, model, args)
+        print("Clean Test Set:")
+        res = model.evaluate(data_loader.x_test, keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
+        print("Poisoned Test Set:")
+        res1 = model.evaluate(data_loader.x_test_poisoned,
+                              keras.utils.to_categorical(data_loader.y_test, data_loader.n_classes))
+        model.save(filepath, predictions=res + res1, file_name=str(repeat_num))
+        for i in range(data_loader.n_classes):
+            idx = np.where(data_loader.y_test == i)[0]
+            if attack_targets[i] is None:
+                print(f"class {i} is not poisoned:")
+                model.evaluate(data_loader.x_test_poisoned[idx],
+                               keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes),
+                               tune=False)
+            else:
+                print(f"class {i} is poisoned:")
+                model.evaluate(data_loader.x_test_poisoned[idx],
+                               keras.utils.to_categorical(data_loader.y_test_poisoned[idx], data_loader.n_classes),
+                               tune=False)
+        model.init()
